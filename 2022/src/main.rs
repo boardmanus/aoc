@@ -3,6 +3,7 @@ use std::process;
 mod aoc;
 mod day1;
 mod day2;
+mod day3;
 use aoc::Aoc;
 
 fn main() {
@@ -13,6 +14,8 @@ fn main() {
         &day2::Day2_1_2,
         &day2::Day2_2,
         &day2::Day2_2_2,
+        &day3::Day3_1,
+        &day3::Day3_2,
     ];
 
     puzzles.into_iter().for_each(|puzzle| {
