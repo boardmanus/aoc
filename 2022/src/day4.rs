@@ -75,8 +75,7 @@ impl aoc::Aoc<u32> for Day4_1 {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
-            .map(|ap| if ap.fully_overlaps() { 1 } else { 0 })
-            .sum()
+            .fold(0, |s, ap| if ap.fully_overlaps() { s + 1 } else { s })
     }
 }
 
@@ -92,8 +91,7 @@ impl aoc::Aoc<u32> for Day4_2 {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
-            .map(|ap| if ap.any_overlap() { 1 } else { 0 })
-            .sum()
+            .fold(0, |s, ap| if ap.any_overlap() { s + 1 } else { s })
     }
 }
 
