@@ -53,13 +53,14 @@ impl aoc::Aoc<u32> for Day3_1 {
     fn puzzle_name(&self) -> &str {
         "Rucksack Priority Sum"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| rucksack_from_str(line))
             .flat_map(|rucksack| dup_item(&rucksack))
             .map(|item| item_priority(item))
-            .sum()
+            .sum::<u32>()
+            .to_string()
     }
 }
 
@@ -94,13 +95,14 @@ impl aoc::Aoc<u32> for Day3_2 {
     fn puzzle_name(&self) -> &str {
         "Rucksack Card Sum"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .chunks(3)
             .map(|chunk| ElfGroup::new(chunk))
             .flat_map(|group| common_item(&group))
             .map(|item| item_priority(item))
-            .sum()
+            .sum::<u32>()
+            .to_string()
     }
 }
 

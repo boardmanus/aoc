@@ -9,9 +9,9 @@ impl aoc::Aoc<u32> for Day1_1 {
     fn puzzle_name(&self) -> &str {
         "Calorie Counting"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         let food = split_lines(lines);
-        total_cals(&food).max().unwrap_or(0)
+        total_cals(&food).max().unwrap_or(0).to_string()
     }
 }
 
@@ -23,11 +23,11 @@ impl aoc::Aoc<u32> for Day1_2 {
     fn puzzle_name(&self) -> &str {
         "Top 3 Calorie Counting"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         let food = split_lines(lines);
         let mut total_cals: Vec<u32> = total_cals(&food).collect();
         total_cals.sort_by(|a, b| a.cmp(b).reverse());
-        total_cals[0..3].iter().sum()
+        total_cals[0..3].iter().sum::<u32>().to_string()
     }
 }
 

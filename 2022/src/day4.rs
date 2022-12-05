@@ -71,11 +71,12 @@ impl aoc::Aoc<u32> for Day4_1 {
     fn puzzle_name(&self) -> &str {
         "Camp Cleanup"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
             .fold(0, |s, ap| if ap.fully_overlaps() { s + 1 } else { s })
+            .to_string()
     }
 }
 
@@ -87,11 +88,12 @@ impl aoc::Aoc<u32> for Day4_2 {
     fn puzzle_name(&self) -> &str {
         "Camp Cleanup all overlaps"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
             .fold(0, |s, ap| if ap.any_overlap() { s + 1 } else { s })
+            .to_string()
     }
 }
 

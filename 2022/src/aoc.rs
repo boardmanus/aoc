@@ -4,7 +4,7 @@ use std::io::{self, BufRead};
 pub trait Aoc<R> {
     fn day(&self) -> u32;
     fn puzzle_name(&self) -> &str;
-    fn solve(&self, lines: &Vec<String>) -> R;
+    fn solve(&self, lines: &Vec<String>) -> String;
     fn input_name(&self) -> String {
         format!("input_day{:}.txt", self.day())
     }

@@ -118,12 +118,13 @@ impl aoc::Aoc<u32> for Day2_1_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 1.1"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| RpsChallenge::from_str(line))
             .map(|challenge| challenge_score2(&challenge).0)
             .sum::<u32>()
+            .to_string()
     }
 }
 
@@ -135,12 +136,13 @@ impl aoc::Aoc<u32> for Day2_1 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| parse_line(line))
             .map(|challenge| challenge_score(challenge))
             .sum::<u32>()
+            .to_string()
     }
 }
 
@@ -152,12 +154,13 @@ impl aoc::Aoc<u32> for Day2_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| parse_line_res(line))
             .map(|challenge| challenge_score_res(challenge))
-            .sum()
+            .sum::<u32>()
+            .to_string()
     }
 }
 pub struct Day2_2_2;
@@ -168,12 +171,13 @@ impl aoc::Aoc<u32> for Day2_2_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 2.1"
     }
-    fn solve(&self, lines: &Vec<String>) -> u32 {
+    fn solve(&self, lines: &Vec<String>) -> String {
         lines
             .iter()
             .flat_map(|line| RpsResult::from_str(line))
             .map(|rps_res| result_score(&rps_res).0)
-            .sum()
+            .sum::<u32>()
+            .to_string()
     }
 }
 
