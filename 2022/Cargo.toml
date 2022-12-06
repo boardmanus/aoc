@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-itertools = {}
-lazy_static = {}
-regex = {}
+itertools = { version = "0.10.5" }
+lazy_static = { version = "1.4.0" }
+regex = { version = "1.7.0" }

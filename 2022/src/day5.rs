@@ -56,7 +56,7 @@ impl aoc::Aoc<u32> for Day5_1 {
         let moves = moves_from_strs(move_strs);
         for m in moves {
             let (n, s, e) = m;
-            for i in 0..n {
+            for _ in 0..n {
                 let c = stacks[s].pop().unwrap();
                 stacks[e].push(c);
             }
