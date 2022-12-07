@@ -95,7 +95,6 @@ impl aoc::Aoc<u32> for Day5_2 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_stuff() {}

@@ -7,6 +7,7 @@ mod day3;
 mod day4;
 mod day5;
 mod day6;
+mod day7;
 use aoc::Aoc;
 
 fn main() {
@@ -25,6 +26,7 @@ fn main() {
         &day5::Day5_2,
         &day6::Day6_1,
         &day6::Day6_2,
+        &day7::Day7_1,
     ];
 
     puzzles.into_iter().for_each(|puzzle| {
