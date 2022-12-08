@@ -5,62 +5,40 @@ use crate::aoc::Aoc;
 
 type FileMap = HashMap<String, usize>;
 
-fn process_cmds<'a>(
-    cmd_strs: &'a [String],
-    cwd: &String,
-    file_counts: &mut FileMap,
-) -> (&'a [String], usize, bool) {
-    let mut rem_cmd_strs = cmd_strs;
-    let existing_files_size = file_counts.get_mut(cwd);
+fn process_cmds(cmd_strs: &[String]) -> FileMap {
+    let mut dir_sizes = FileMap::default();
+    let mut pwd = vec![""];
 
-    if existing_files_size.is_some() && cwd != "/" {
-        return (cmd_strs, 0, false);
-    }
-
-    let mut files_size = 0;
-    while rem_cmd_strs.len() > 0 {
-        let cmd_str = rem_cmd_strs.first().unwrap();
-        rem_cmd_strs = &rem_cmd_strs[1..];
-        let item_args = cmd_str.split(' ').collect_vec();
-
-        match item_args[0] {
-            "$" => match item_args[1] {
-                "cd" => match item_args[2] {
-                    "/" => {
-                        if cwd != "/" {
-                            return (rem_cmd_strs, files_size, true);
-                        }
-                    }
-                    ".." => {
-                        return (rem_cmd_strs, files_size, false);
-                    }
-                    _ => {
-                        let res = process_cmds(
-                            rem_cmd_strs,
-                            &format!("{}{}/", cwd, &item_args[2]),
-                            file_counts,
-                        );
-                        rem_cmd_strs = res.0;
-                        files_size += res.1;
-                        if res.2 {
-                            file_counts.insert(cwd.to_string(), files_size);
-                            return (res.0, files_size, true);
-                        }
-                    }
-                },
-                "ls" => (),
-                _ => panic!(),
-            },
-            "dir" => (),
-            _ => {
-                files_size += item_args[0].parse::<usize>().unwrap();
+    for cmd in cmd_strs {
+        match cmd.split(' ').collect_vec().as_slice() {
+            ["$", "cd", "/"] => pwd = vec![""],
+            ["$", "cd", ".."] => {
+                pwd.pop();
             }
+            ["$", "cd", dir] => pwd.push(dir),
+            ["$", "ls"] => (),
+            ["dir", _] => (),
+            [file_size_str, filename] => {
+                let file_size = file_size_str.parse::<usize>().unwrap();
+                let mut prev_dir = "".to_string();
+                pwd.iter()
+                    .map(|dir| {
+                        let path = format!("{prev_dir}{dir}/");
+                        prev_dir = path.clone();
+                        path
+                    })
+                    .for_each(|path| {
+                        if let Some(dir_size) = dir_sizes.get_mut(&path) {
+                            *dir_size += file_size;
+                        } else {
+                            dir_sizes.insert(path, file_size);
+                        }
+                    });
+            }
+            _ => panic!(),
         }
-
-        file_counts.insert(cwd.to_string(), files_size);
     }
-
-    (rem_cmd_strs, files_size, false)
+    dir_sizes
 }
 
 pub struct Day7_1;
@@ -72,17 +50,10 @@ impl Aoc for Day7_1 {
         "No Space"
     }
     fn solve(&self, lines: &Vec<String>) -> String {
-        let mut file_counts: FileMap = Default::default();
-        process_cmds(&lines[..], &String::from("/"), &mut file_counts);
-        file_counts
-            .iter()
-            .fold(0, |acc, size| -> usize {
-                if *size.1 <= 100000 {
-                    acc + size.1
-                } else {
-                    acc
-                }
-            })
+        process_cmds(&lines[..])
+            .values()
+            .filter(|size| *size < &100000)
+            .sum::<usize>()
             .to_string()
     }
 }
@@ -96,15 +67,16 @@ impl Aoc for Day7_2 {
         "No Space 2"
     }
     fn solve(&self, lines: &Vec<String>) -> String {
-        let mut file_counts: FileMap = Default::default();
-        process_cmds(&lines[..], &String::from("/"), &mut file_counts);
+        let file_counts = process_cmds(&lines[..]);
         let used_space = file_counts["/"];
         let free_space = 70000000 - used_space;
         let delete_size = 30000000 - free_space;
         file_counts
             .iter()
             .filter(|a| *a.1 >= delete_size as usize)
-            .fold(usize::MAX, |min, v| if *v.1 < min { *v.1 } else { min })
+            .map(|v| v.1)
+            .min()
+            .unwrap()
             .to_string()
     }
 }
