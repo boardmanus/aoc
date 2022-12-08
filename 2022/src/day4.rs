@@ -64,7 +64,7 @@ impl AssignmentPair {
 }
 
 pub struct Day4_1;
-impl aoc::Aoc<u32> for Day4_1 {
+impl aoc::Aoc for Day4_1 {
     fn day(&self) -> u32 {
         4
     }
@@ -81,7 +81,7 @@ impl aoc::Aoc<u32> for Day4_1 {
 }
 
 pub struct Day4_2;
-impl aoc::Aoc<u32> for Day4_2 {
+impl aoc::Aoc for Day4_2 {
     fn day(&self) -> u32 {
         4
     }

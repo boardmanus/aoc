@@ -111,7 +111,7 @@ fn result_score(rps_res: &RpsResult) -> Score {
 }
 
 pub struct Day2_1_2;
-impl aoc::Aoc<u32> for Day2_1_2 {
+impl aoc::Aoc for Day2_1_2 {
     fn day(&self) -> u32 {
         2
     }
@@ -129,7 +129,7 @@ impl aoc::Aoc<u32> for Day2_1_2 {
 }
 
 pub struct Day2_1;
-impl aoc::Aoc<u32> for Day2_1 {
+impl aoc::Aoc for Day2_1 {
     fn day(&self) -> u32 {
         2
     }
@@ -147,7 +147,7 @@ impl aoc::Aoc<u32> for Day2_1 {
 }
 
 pub struct Day2_2;
-impl aoc::Aoc<u32> for Day2_2 {
+impl aoc::Aoc for Day2_2 {
     fn day(&self) -> u32 {
         2
     }
@@ -164,7 +164,7 @@ impl aoc::Aoc<u32> for Day2_2 {
     }
 }
 pub struct Day2_2_2;
-impl aoc::Aoc<u32> for Day2_2_2 {
+impl aoc::Aoc for Day2_2_2 {
     fn day(&self) -> u32 {
         2
     }

@@ -2,7 +2,7 @@ use crate::aoc;
 
 pub struct Day1_1;
 
-impl aoc::Aoc<u32> for Day1_1 {
+impl aoc::Aoc for Day1_1 {
     fn day(&self) -> u32 {
         1
     }
@@ -16,7 +16,7 @@ impl aoc::Aoc<u32> for Day1_1 {
 }
 
 pub struct Day1_2;
-impl aoc::Aoc<u32> for Day1_2 {
+impl aoc::Aoc for Day1_2 {
     fn day(&self) -> u32 {
         1
     }

@@ -1,108 +1,70 @@
 use itertools::Itertools;
-use lazy_static::{__Deref, lazy_static};
-use std::{collections::HashMap, ops::DerefMut};
+use std::collections::HashMap;
 
 use crate::aoc::Aoc;
 
-type DirMap = HashMap<String, Dir>;
+type FileMap = HashMap<String, usize>;
 
-#[derive(PartialEq, Debug)]
-struct Dir {
-    file_size: usize,
-    dirs: DirMap,
-}
+fn process_cmds<'a>(
+    cmd_strs: &'a [String],
+    cwd: &String,
+    file_counts: &mut FileMap,
+) -> (&'a [String], usize, bool) {
+    let mut rem_cmd_strs = cmd_strs;
+    let existing_files_size = file_counts.get_mut(cwd);
 
-impl Dir {
-    fn new() -> Self {
-        Dir {
-            file_size: 0,
-            dirs: Default::default(),
-        }
+    if existing_files_size.is_some() && cwd != "/" {
+        return (cmd_strs, 0, false);
     }
-    fn make(file_size: usize, dirs: DirMap) -> Self {
-        Dir { file_size, dirs }
-    }
-}
 
-fn cd_to(cur_path: &str, new_dir: &str) -> String {
-    format!("{cur_path}/{new_dir}")
-}
+    let mut files_size = 0;
+    while rem_cmd_strs.len() > 0 {
+        let cmd_str = rem_cmd_strs.first().unwrap();
+        rem_cmd_strs = &rem_cmd_strs[1..];
+        let item_args = cmd_str.split(' ').collect_vec();
 
-fn lines_to_cmd_strs(lines: &Vec<String>) -> Vec<&[String]> {
-    let mut res: Vec<&[String]> = Default::default();
-    let mut start_idx = 0;
-    res = lines[1..]
-        .iter()
-        .enumerate()
-        .fold(res, |mut r, line| -> Vec<&[String]> {
-            if (line.1.chars().next().unwrap() == '$') {
-                r.push(&lines[start_idx..line.0 + 1]);
-                start_idx = line.0 + 1;
-            }
-            r
-        });
-    res.push(&lines[start_idx..]);
-    res
-}
-
-fn cd_to_dir<'a>(stack: &mut Vec<&'a mut Dir>, new_dir: &str) -> &'a mut Dir {
-    let mut new_stack = stack;
-    let cur_dir = new_stack.last().unwrap();
-
-    match new_dir {
-        ".." => {
-            new_stack.pop();
-            new_stack.last_mut().unwrap()
-        }
-        "/" => {
-            new_stack.remove(new_stack.len() - 1);
-            new_stack.first_mut().unwrap()
-        }
-        _ => {
-            let new_dir = &mut cur_dir.dirs[new_dir];
-            new_stack.push(new_dir);
-            new_dir
-        }
-    }
-}
-
-fn ls_dir(cur_dir: &mut Dir, dir_entries: &[String]) {
-    for item in dir_entries {
-        let item_args = item.split(' ').collect_vec();
         match item_args[0] {
-            "dir" => {
-                cur_dir.dirs.insert(String::from(item_args[1]), Dir::new());
-            }
+            "$" => match item_args[1] {
+                "cd" => match item_args[2] {
+                    "/" => {
+                        if cwd != "/" {
+                            return (rem_cmd_strs, files_size, true);
+                        }
+                    }
+                    ".." => {
+                        return (rem_cmd_strs, files_size, false);
+                    }
+                    _ => {
+                        let res = process_cmds(
+                            rem_cmd_strs,
+                            &format!("{}{}/", cwd, &item_args[2]),
+                            file_counts,
+                        );
+                        rem_cmd_strs = res.0;
+                        files_size += res.1;
+                        if res.2 {
+                            file_counts.insert(cwd.to_string(), files_size);
+                            return (res.0, files_size, true);
+                        }
+                    }
+                },
+                "ls" => (),
+                _ => panic!(),
+            },
+            "dir" => (),
             _ => {
-                cur_dir.file_size += item_args[0].parse::<usize>().unwrap();
+                files_size += item_args[0].parse::<usize>().unwrap();
             }
-        };
-    }
-}
-
-fn cmd_strs_to_dirs(cmd_strs: &Vec<&[String]>) -> Dir {
-    let mut root: Dir = Dir::new();
-    let mut stack: Vec<&mut Dir> = vec![&mut root];
-    let mut curr_dir = &mut root;
-    cmd_strs.iter().fold(stack, |acc, cmd_str| {
-        let args = cmd_str[0].split(' ').collect_vec();
-        match args[1] {
-            "cd" => curr_dir = cd_to_dir(&mut stack, args[2]),
-            "ls" => ls_dir(curr_dir, &cmd_str[1..]),
         }
-    });
-    root
+
+        file_counts.insert(cwd.to_string(), files_size);
+    }
+
+    (rem_cmd_strs, files_size, false)
 }
 
-/*
-fn filesystem_from_cmds(cmds: &Vec<String>) -> Option<Dir> {
-    //let mut fs : Option<Dir> = None;
-    cmds.iter()
-        .fold(None, |mut acc, line| -> Option<Dir> { parse_cmd() })
-}
-*/
 pub struct Day7_1;
-impl Aoc<u32> for Day7_1 {
+impl Aoc for Day7_1 {
     fn day(&self) -> u32 {
         7
     }
@@ -110,27 +72,47 @@ impl Aoc<u32> for Day7_1 {
         "No Space"
     }
     fn solve(&self, lines: &Vec<String>) -> String {
-        //let fs = filesystem_from_cmds(lines);
-        Default::default()
+        let mut file_counts: FileMap = Default::default();
+        process_cmds(&lines[..], &String::from("/"), &mut file_counts);
+        file_counts
+            .iter()
+            .fold(0, |acc, size| -> usize {
+                if *size.1 <= 100000 {
+                    acc + size.1
+                } else {
+                    acc
+                }
+            })
+            .to_string()
     }
 }
 
 pub struct Day7_2;
-impl Aoc<u32> for Day7_2 {
+impl Aoc for Day7_2 {
     fn day(&self) -> u32 {
         7
     }
     fn puzzle_name(&self) -> &str {
-        "??? 2"
+        "No Space 2"
     }
     fn solve(&self, lines: &Vec<String>) -> String {
-        Default::default()
+        let mut file_counts: FileMap = Default::default();
+        process_cmds(&lines[..], &String::from("/"), &mut file_counts);
+        let used_space = file_counts["/"];
+        let free_space = 70000000 - used_space;
+        let delete_size = 30000000 - free_space;
+        file_counts
+            .iter()
+            .filter(|a| *a.1 >= delete_size as usize)
+            .fold(usize::MAX, |min, v| if *v.1 < min { *v.1 } else { min })
+            .to_string()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lazy_static::lazy_static;
 
     const INPUT: [&str; 23] = [
         "$ cd /",
@@ -169,28 +151,6 @@ mod tests {
             String::from("2 c"),
         ];
     }
-    #[test]
-    fn test_lines_to_cmds() {
-        assert_eq!(
-            lines_to_cmd_strs(&CMD_LINES),
-            vec![
-                &CMD_LINES[0..1],
-                &CMD_LINES[1..3],
-                &CMD_LINES[3..4],
-                &CMD_LINES[4..7]
-            ]
-        )
-    }
-
-    #[test]
-    fn test_cmd_strs_to_dirs() {
-        let root_dm = DirMap::default();
-        root_dm["a"] = Dir::make(3, DirMap::default());
-        assert_eq!(
-            cmd_strs_to_dirs(&lines_to_cmd_strs(&CMD_LINES)),
-            Dir::make(0, root_dm)
-        );
-    }
 
     #[test]
     fn test_soln() {
@@ -203,15 +163,12 @@ mod tests {
     }
 
     #[test]
-    fn test_dir_structure() {
+    fn test_soln2() {
         let input_strs = INPUT
             .map(|s| String::from(s))
             .into_iter()
             .collect::<Vec<String>>();
-    }
 
-    #[test]
-    fn test_soln2() {
-        assert_eq!(1, 1);
+        assert_eq!(Day7_2.solve(&input_strs), 24933642.to_string());
     }
 }

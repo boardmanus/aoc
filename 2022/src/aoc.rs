@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 
-pub trait Aoc<R> {
+pub trait Aoc {
     fn day(&self) -> u32;
     fn puzzle_name(&self) -> &str;
     fn solve(&self, lines: &Vec<String>) -> String;

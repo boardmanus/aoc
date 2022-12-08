@@ -2,24 +2,21 @@ use itertools::Itertools;
 
 use crate::aoc;
 
-fn find_start(input_str: &str, num_unique: usize) -> (usize, &str) {
-    let val = input_str[num_unique - 1..]
+fn is_unique(token_str: &str) -> bool {
+    token_str.chars().duplicates().next().is_none()
+}
+
+fn find_start(input_str: &str, len: usize) -> (usize, &str) {
+    let val = input_str[len - 1..]
         .chars()
         .enumerate()
-        .find(|(i, _c)| {
-            input_str[*i..*i + num_unique]
-                .chars()
-                .into_iter()
-                .duplicates()
-                .next()
-                .is_none()
-        })
+        .find(|(i, _c)| is_unique(&input_str[*i..*i + len]))
         .unwrap();
-    (val.0 + num_unique, &input_str[val.0..val.0 + 4])
+    (val.0 + len, &input_str[val.0..val.0 + 4])
 }
 
 pub struct Day6_1;
-impl aoc::Aoc<u32> for Day6_1 {
+impl aoc::Aoc for Day6_1 {
     fn day(&self) -> u32 {
         6
     }
@@ -32,7 +29,7 @@ impl aoc::Aoc<u32> for Day6_1 {
 }
 
 pub struct Day6_2;
-impl aoc::Aoc<u32> for Day6_2 {
+impl aoc::Aoc for Day6_2 {
     fn day(&self) -> u32 {
         6
     }

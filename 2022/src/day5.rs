@@ -18,7 +18,7 @@ fn stacks_from_strs(stack_strs: &[String]) -> [Vec<char>; 9] {
         row_str.chars().enumerate().for_each(|(idx, c)| {
             let col = idx / 4;
             let i = idx % 4;
-            if i == 1 && c >= 'A' && c <= 'Z' {
+            if i == 1 && c.is_ascii_alphabetic() {
                 stacks[col].push(c);
             }
         });
@@ -43,7 +43,7 @@ fn moves_from_strs(move_strs: &[String]) -> Vec<(usize, usize, usize)> {
 }
 
 pub struct Day5_1;
-impl aoc::Aoc<u32> for Day5_1 {
+impl aoc::Aoc for Day5_1 {
     fn day(&self) -> u32 {
         5
     }
@@ -63,13 +63,13 @@ impl aoc::Aoc<u32> for Day5_1 {
         }
         stacks
             .iter()
-            .map(|stack| stack.last().unwrap())
+            .flat_map(|stack| stack.last())
             .collect::<String>()
     }
 }
 
 pub struct Day5_2;
-impl aoc::Aoc<u32> for Day5_2 {
+impl aoc::Aoc for Day5_2 {
     fn day(&self) -> u32 {
         5
     }

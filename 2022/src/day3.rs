@@ -46,7 +46,7 @@ fn item_priority(item: char) -> u32 {
 }
 
 pub struct Day3_1;
-impl aoc::Aoc<u32> for Day3_1 {
+impl aoc::Aoc for Day3_1 {
     fn day(&self) -> u32 {
         3
     }
@@ -88,7 +88,7 @@ fn common_item(group: &ElfGroup) -> Option<char> {
     None
 }
 pub struct Day3_2;
-impl aoc::Aoc<u32> for Day3_2 {
+impl aoc::Aoc for Day3_2 {
     fn day(&self) -> u32 {
         3
     }

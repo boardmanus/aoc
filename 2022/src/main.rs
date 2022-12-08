@@ -8,10 +8,11 @@ mod day4;
 mod day5;
 mod day6;
 mod day7;
+mod day8;
 use aoc::Aoc;
 
 fn main() {
-    let puzzles: Vec<&'static dyn Aoc<u32>> = vec![
+    let puzzles: Vec<&'static dyn Aoc> = vec![
         &day1::Day1_1,
         &day1::Day1_2,
         &day2::Day2_1,
@@ -27,6 +28,8 @@ fn main() {
         &day6::Day6_1,
         &day6::Day6_2,
         &day7::Day7_1,
+        &day7::Day7_2,
+        &day8::Day8_1,
     ];
 
     puzzles.into_iter().for_each(|puzzle| {
