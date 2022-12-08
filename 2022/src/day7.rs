@@ -18,7 +18,7 @@ fn process_cmds(cmd_strs: &[String]) -> FileMap {
             ["$", "cd", dir] => pwd.push(dir),
             ["$", "ls"] => (),
             ["dir", _] => (),
-            [file_size_str, filename] => {
+            [file_size_str, _filename] => {
                 let file_size = file_size_str.parse::<usize>().unwrap();
                 let mut prev_dir = "".to_string();
                 pwd.iter()
