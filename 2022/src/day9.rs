@@ -43,9 +43,14 @@ fn update_tail(head: &Pos, tail: &Pos) -> Pos {
     let d_pos = (head.0 - tail.0, head.1 - tail.1);
     let abs_d_pos = (d_pos.0.abs(), d_pos.1.abs());
     match abs_d_pos {
+        (2, 2) => (tail.0 + d_pos.0.signum(), tail.1 + d_pos.1.signum()),
         (_, 2) => (tail.0 + d_pos.0, tail.1 + d_pos.1.signum()),
         (2, _) => (tail.0 + d_pos.0.signum(), tail.1 + d_pos.1),
-        _ => *tail,
+        (1, _) | (_, 1) | (0, 0) => (tail.0, tail.1),
+        _ => {
+            println!("panic: head={:?}, tail={:?}, d_pos={:?}", head, tail, d_pos);
+            panic!()
+        }
     }
 }
 
@@ -55,7 +60,6 @@ fn update_state<const N: usize>(state: &State<N>, dpos: &DPos) -> State<N> {
     (1..state.pos.len()).for_each(|i| {
         new_state.pos[i] = update_tail(&new_state.pos[i - 1], &state.pos[i]);
     });
-    //println!("{:?} => {:?}", dpos, new_state);
     new_state
 }
 
@@ -74,7 +78,6 @@ impl Aoc for Day9_1 {
             .for_each(|line| collect_moves(to_move(line), &mut dmoves));
 
         let mut tail_positions: HashSet<Pos> = Default::default();
-
         dmoves
             .iter()
             .fold(State::<2> { pos: [(0, 0); 2] }, |state, dpos| -> State<2> {
@@ -82,7 +85,6 @@ impl Aoc for Day9_1 {
                 tail_positions.insert(new_state.pos[1]);
                 new_state
             });
-
         tail_positions.len().to_string()
     }
 }
@@ -102,24 +104,13 @@ impl Aoc for Day9_2 {
             .for_each(|line| collect_moves(to_move(line), &mut dmoves));
 
         let mut tail_positions: HashSet<Pos> = Default::default();
-        let mut new_vals = 0;
-        let mut dups = 0;
         dmoves.iter().fold(
             State::<10> { pos: [(0, 0); 10] },
             |state, dpos| -> State<10> {
                 let new_state = update_state(&state, &dpos);
-                let res = tail_positions.insert(new_state.pos[9]);
-                if res {
-                    new_vals += 1;
-                } else {
-                    dups += 1;
-                }
+                tail_positions.insert(*new_state.pos.last().unwrap());
                 new_state
             },
-        );
-        println!(
-            "new_vals={new_vals}, dups={dups}, len={}",
-            tail_positions.len()
         );
         tail_positions.len().to_string()
     }
