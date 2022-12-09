@@ -22,10 +22,6 @@ fn is_visible(section: &[usize], h: usize, i: usize) -> bool {
     section[0..i].iter().all(|h2| *h2 < h) || section[i + 1..section.len()].iter().all(|h2| *h2 < h)
 }
 
-fn num_visible(section: &[usize], h: &usize) -> usize {
-    section.iter().rev().take_while(|h2| *h2 < h).count()
-}
-
 pub struct Day8_1;
 impl Aoc for Day8_1 {
     fn day(&self) -> u32 {
@@ -37,11 +33,12 @@ impl Aoc for Day8_1 {
     fn solve(&self, lines: &Vec<String>) -> String {
         let m = to_matrix(lines);
         let mut visible = 2 * (m.num_rows() + m.num_columns() - 2);
-
+        let rows = m.as_rows();
+        let cols = m.as_columns();
         for x in 1..m.num_columns() - 1 {
             for y in 1..m.num_rows() - 1 {
                 let h = m.get(y, x).unwrap();
-                if is_visible(&m.as_rows()[y], *h, x) || is_visible(&m.as_columns()[x], *h, y) {
+                if is_visible(&rows[y], *h, x) || is_visible(&cols[x], *h, y) {
                     visible += 1;
                 }
             }
