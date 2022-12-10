@@ -41,16 +41,10 @@ fn update_head(head: &Pos, dmove: &DPos) -> Pos {
 
 fn update_tail(head: &Pos, tail: &Pos) -> Pos {
     let d_pos = (head.0 - tail.0, head.1 - tail.1);
-    let abs_d_pos = (d_pos.0.abs(), d_pos.1.abs());
-    match abs_d_pos {
-        (2, 2) => (tail.0 + d_pos.0.signum(), tail.1 + d_pos.1.signum()),
-        (_, 2) => (tail.0 + d_pos.0, tail.1 + d_pos.1.signum()),
-        (2, _) => (tail.0 + d_pos.0.signum(), tail.1 + d_pos.1),
-        (1, _) | (_, 1) | (0, 0) => (tail.0, tail.1),
-        _ => {
-            println!("panic: head={:?}, tail={:?}, d_pos={:?}", head, tail, d_pos);
-            panic!()
-        }
+    if d_pos.0.abs() == 2 || d_pos.1.abs() == 2 {
+        (tail.0 + d_pos.0.signum(), tail.1 + d_pos.1.signum())
+    } else {
+        *tail
     }
 }
 
