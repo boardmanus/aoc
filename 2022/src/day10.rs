@@ -74,38 +74,45 @@ impl Aoc for Day10_2 {
     }
     fn solve(&self, lines: &Vec<String>) -> String {
         let mut sample_num = 20;
-        let mut x = 1;
+        let mut x: i32 = 1;
         let mut cycle: i32 = 0;
-        lines
+        let display = lines
             .iter()
             .map(|line| line_to_op(line))
-            .fold(0, |sum, op| -> i32 {
-                let old_x = x;
-                x += match op {
-                    Op::Noop => {
-                        cycle += 1;
-                        0
-                    }
+            .fold(Vec::<i32>::default(), |moves, op| -> Vec<i32> {
+                let mut new_moves = moves;
+                match op {
+                    Op::Noop => new_moves.push(0),
                     Op::Addx(dx) => {
-                        cycle += 2;
-                        dx
+                        new_moves.push(0);
+                        new_moves.push(dx);
                     }
                 };
-                println!("sample_num={sample_num}, cycle={cycle}, old_x={old_x}, x={x}, sum={sum}");
-                let old_sample_num = sample_num;
-                if cycle > sample_num {
-                    sample_num += 40;
-                    println!("signal strength={}", old_sample_num * old_x);
-                    sum + old_sample_num * old_x
-                } else if cycle == sample_num {
-                    sample_num += 40;
-                    println!("signal strength={}", cycle * x);
-                    sum + cycle * old_x
-                } else {
-                    sum
-                }
+                new_moves
             })
-            .to_string()
+            .iter()
+            .enumerate()
+            .map(|e| -> char {
+                let ds = x.abs_diff((e.0 % 40) as i32);
+                let c = if ds < 2 { '#' } else { '.' };
+                x += e.1;
+                c
+            })
+            .enumerate()
+            .flat_map(|(i, c)| {
+                {
+                    if i != 0 && i % 40 == 0 {
+                        Some('\n')
+                    } else {
+                        None
+                    }
+                }
+                .into_iter()
+                .chain(std::iter::once(c))
+            })
+            .collect();
+        println!("{display}");
+        display
     }
 }
 

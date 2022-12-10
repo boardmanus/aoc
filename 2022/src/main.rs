@@ -36,6 +36,7 @@ fn main() {
         &day9::Day9_1,
         &day9::Day9_2,
         &day10::Day10_1,
+        &day10::Day10_2,
     ];
 
     puzzles.into_iter().for_each(|puzzle| {
