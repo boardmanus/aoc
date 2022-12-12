@@ -5,10 +5,6 @@ enum Op {
     Addx(i32),
 }
 
-fn signal_strength(cycle: i32, x: i32) -> i32 {
-    cycle * x
-}
-
 fn line_to_op(line: &str) -> Op {
     let mut op_strs = line.split(' ');
     match op_strs.next().unwrap() {
@@ -73,9 +69,7 @@ impl Aoc for Day10_2 {
         "CRT 2"
     }
     fn solve(&self, lines: &Vec<String>) -> String {
-        let mut sample_num = 20;
         let mut x: i32 = 1;
-        let mut cycle: i32 = 0;
         let display = lines
             .iter()
             .map(|line| line_to_op(line))
