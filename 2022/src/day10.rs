@@ -42,15 +42,12 @@ impl Aoc for Day10_1 {
                         dx
                     }
                 };
-                println!("sample_num={sample_num}, cycle={cycle}, old_x={old_x}, x={x}, sum={sum}");
                 let old_sample_num = sample_num;
                 if cycle > sample_num {
                     sample_num += 40;
-                    println!("signal strength={}", old_sample_num * old_x);
                     sum + old_sample_num * old_x
                 } else if cycle == sample_num {
                     sample_num += 40;
-                    println!("signal strength={}", cycle * x);
                     sum + cycle * old_x
                 } else {
                     sum
@@ -105,7 +102,6 @@ impl Aoc for Day10_2 {
                 .chain(std::iter::once(c))
             })
             .collect();
-        println!("{display}");
         display
     }
 }

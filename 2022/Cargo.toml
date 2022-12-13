@@ -11,5 +11,5 @@ itertools = { version = "0.10.5" }
 lazy_static = { version = "1.4.0" }
 regex = { version = "1.7.0" }
 array2d = {}
-num-bigint = {}
 num-traits = {}
+pathfinding = {}

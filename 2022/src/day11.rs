@@ -87,7 +87,6 @@ fn parse_monkey(lines: &[String]) -> Monkey {
 fn parse_monkeys(lines: &Vec<String>) -> Vec<Monkey> {
     let mut monkeys: Vec<Monkey> = Default::default();
     for i in 0..(lines.len() + 1) / 7 {
-        println!("Parsing Monkey {i}");
         monkeys.push(parse_monkey(&lines[i * 7..i * 7 + 6]));
     }
     monkeys
