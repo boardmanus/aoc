@@ -1,7 +1,9 @@
 use crate::aoc::Aoc;
 use itertools::Itertools;
 
-type Matrix = Vec<Vec<usize>>;
+type MatrixT<T> = Vec<Vec<T>>;
+type Matrix = MatrixT<usize>;
+type Neighbors = MatrixT<Vec<(Pos, usize)>>;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 struct Pos(usize, usize);
@@ -16,6 +18,7 @@ impl Pos {
 
 struct Graph {
     m: Matrix,
+    n: Neighbors,
     s: Pos,
     e: Pos,
 }
@@ -56,10 +59,19 @@ impl Graph {
         });
         lows
     }
+    fn update_neighbours(&mut self) {
+        self.n = (0..self.m.len())
+            .map(|y| {
+                (0..self.m[0].len())
+                    .map(|x| self.neighbors(&Pos(x, y)))
+                    .collect_vec()
+            })
+            .collect_vec()
+    }
 
     fn neighbors(&self, pos: &Pos) -> Vec<(Pos, usize)> {
         let a = self.get(pos);
-        let n = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        [(1, 0), (-1, 0), (0, 1), (0, -1)]
             .iter()
             .filter(|dp| {
                 let b = self.get(&pos.offset(dp));
@@ -67,14 +79,15 @@ impl Graph {
                 diff < 2
             })
             .map(|dp| (pos.offset(dp), 1))
-            .collect_vec();
-        n
+            .collect_vec()
     }
 }
 
 fn lines_to_graph(lines: &[String]) -> Graph {
     let mut s = Pos(0, 0);
     let mut e = Pos(0, 0);
+    let n = Neighbors::default();
+
     let m = lines
         .iter()
         .enumerate()
@@ -97,7 +110,7 @@ fn lines_to_graph(lines: &[String]) -> Graph {
         })
         .collect_vec();
 
-    Graph { m, s, e }
+    Graph { m, n, s, e }
 }
 
 pub struct Day12_1;
@@ -125,12 +138,13 @@ impl Aoc for Day12_2 {
     }
     fn solve(&self, lines: &Vec<String>) -> String {
         let mut g = lines_to_graph(lines);
-        let starting_pos = g.find_lows();
-        starting_pos
+        g.update_neighbours();
+        g.find_lows()
             .iter()
             .map(|sp| {
                 g.s = sp.clone();
-                let path = pathfinding::prelude::dijkstra(&g.s, |p| g.neighbors(p), |p| *p == g.e);
+                let path =
+                    pathfinding::prelude::dijkstra(sp, |p| g.n[p.1][p.0].clone(), |p| *p == g.e);
                 let l = if let Some(p) = path {
                     p.0.len() - 1
                 } else {
@@ -165,33 +179,6 @@ mod tests {
         assert_eq!(Day12_2.solve(&input_strs), 29.to_string());
     }
 
-    #[test]
-    fn test_line_rev() {
-        let mut lines = as_vstrings(&INPUT[0..]);
-        let g = lines_to_graph(&lines);
-        let lines2 = g.to_lines();
-        assert_eq!(lines2[g.s.1].chars().nth(g.s.0), Some('a'));
-        assert_eq!(lines2[g.e.1].chars().nth(g.e.0), Some('z'));
-        lines[g.s.1] = lines[g.s.1]
-            .chars()
-            .map(|c| match c {
-                'S' => 'a',
-                'E' => 'z',
-                _ => c,
-            })
-            .collect::<String>();
-
-        lines[g.e.1] = lines[g.e.1]
-            .chars()
-            .map(|c| match c {
-                'S' => 'a',
-                'E' => 'z',
-                _ => c,
-            })
-            .collect::<String>();
-
-        assert_eq!(lines, lines2);
-    }
     #[test]
     fn test_pos_offset() {
         assert_eq!(Pos(0, 0).offset(&(-1, -1)), Pos(0, usize::MAX));

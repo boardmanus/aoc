@@ -13,3 +13,4 @@ regex = { version = "1.7.0" }
 array2d = {}
 num-traits = {}
 pathfinding = {}
+nom = {}
