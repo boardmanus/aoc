@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::aoc::Aoc;
 
 enum Op {
@@ -22,7 +24,7 @@ impl Aoc for Day10_1 {
     fn puzzle_name(&self) -> &str {
         "CRT"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         //const SAMPLE_CYCLES: [i32; 6] = [20, 60, 100, 140, 180, 220];
         let mut sample_num = 20;
         let mut x = 1;
@@ -43,14 +45,16 @@ impl Aoc for Day10_1 {
                     }
                 };
                 let old_sample_num = sample_num;
-                if cycle > sample_num {
-                    sample_num += 40;
-                    sum + old_sample_num * old_x
-                } else if cycle == sample_num {
-                    sample_num += 40;
-                    sum + cycle * old_x
-                } else {
-                    sum
+                match cycle.cmp(&sample_num) {
+                    Ordering::Greater => {
+                        sample_num += 40;
+                        sum + old_sample_num * old_x
+                    }
+                    Ordering::Equal => {
+                        sample_num += 40;
+                        sum + cycle * old_x
+                    }
+                    _ => sum,
                 }
             })
             .to_string()
@@ -65,9 +69,9 @@ impl Aoc for Day10_2 {
     fn puzzle_name(&self) -> &str {
         "CRT 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut x: i32 = 1;
-        let display = lines
+        let display: String = lines
             .iter()
             .map(|line| line_to_op(line))
             .fold(Vec::<i32>::default(), |moves, op| -> Vec<i32> {
@@ -102,7 +106,7 @@ impl Aoc for Day10_2 {
                 .chain(std::iter::once(c))
             })
             .collect();
-        display
+        format!("\n{display}")
     }
 }
 

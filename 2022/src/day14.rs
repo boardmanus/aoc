@@ -3,14 +3,8 @@ use std::{fmt, fmt::Display, str::FromStr};
 use crate::aoc::Aoc;
 use itertools::Itertools;
 use nom::{
-    self,
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{char, digit1},
-    combinator::map_res,
-    multi::separated_list0,
-    sequence::{delimited, separated_pair, tuple},
-    IResult,
+    self, bytes::complete::tag, character::complete::digit1, combinator::map_res,
+    multi::separated_list0, sequence::separated_pair, IResult,
 };
 
 type Pos = (i32, i32);
@@ -33,24 +27,24 @@ fn parse_formations(s: &str) -> IResult<&str, Formation> {
 fn lines_to_formations(lines: &[String]) -> Vec<Formation> {
     lines
         .iter()
-        .map(|line| parse_formations(&line).unwrap().1)
+        .map(|line| parse_formations(line).unwrap().1)
         .collect_vec()
 }
 
-fn analyse_formations(formations: &Vec<Formation>) {
+fn analyse_formations(formations: &[Formation]) {
     let min = min_pos(formations);
     let max = max_pos(formations);
     println!("Formation: min={min:?}, max={max:?}");
 }
 
-fn max_pos(formations: &Vec<Formation>) -> Pos {
+fn max_pos(formations: &[Formation]) -> Pos {
     formations
         .iter()
         .map(|f| f.iter().fold((0, 0), |m, p| (m.0.max(p.0), m.1.max(p.1))))
         .fold((0, 0), |m, p| (m.0.max(p.0), m.1.max(p.1)))
 }
 
-fn min_pos(formations: &Vec<Formation>) -> Pos {
+fn min_pos(formations: &[Formation]) -> Pos {
     formations
         .iter()
         .map(|f| {
@@ -81,9 +75,9 @@ impl Display for Map {
     }
 }
 impl Map {
-    fn new(formations: &Vec<Formation>) -> Self {
-        let min = min_pos(&formations);
-        let max = max_pos(&formations);
+    fn new(formations: &[Formation]) -> Self {
+        let min = min_pos(formations);
+        let max = max_pos(formations);
         let stride = max.0 - min.0 + 1;
         let len = stride * (max.1 + 1);
         let mut map = Map {
@@ -151,7 +145,7 @@ impl Aoc for Day14_1 {
     fn puzzle_name(&self) -> &str {
         "Regolith Reservoir"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let formations = lines_to_formations(lines);
         let mut map = Map::new(&formations);
 
@@ -179,7 +173,7 @@ impl Aoc for Day14_2 {
     fn puzzle_name(&self) -> &str {
         "Regolith Reservoir 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut formations = lines_to_formations(lines);
         let max = max_pos(&formations);
         formations.push(vec![(0, max.1 + 2), (1000, max.1 + 2)]);

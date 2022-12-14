@@ -6,7 +6,7 @@ use itertools::Itertools;
 pub trait Aoc {
     fn day(&self) -> u32;
     fn puzzle_name(&self) -> &str;
-    fn solve(&self, lines: &Vec<String>) -> String;
+    fn solve(&self, lines: &[String]) -> String;
     fn input_name(&self) -> String {
         format!("input_day{:}.txt", self.day())
     }
@@ -29,7 +29,7 @@ pub fn as_vstrings(strs: &[&str]) -> Vec<String> {
         .collect::<Vec<String>>()
 }
 
-pub fn to_rows(lines: &Vec<String>) -> Vec<Vec<usize>> {
+pub fn to_rows(lines: &[String]) -> Vec<Vec<usize>> {
     lines
         .iter()
         .map(|line| line.chars().map(|c| c as usize).collect_vec())

@@ -84,7 +84,7 @@ fn parse_monkey(lines: &[String]) -> Monkey {
     }
 }
 
-fn parse_monkeys(lines: &Vec<String>) -> Vec<Monkey> {
+fn parse_monkeys(lines: &[String]) -> Vec<Monkey> {
     let mut monkeys: Vec<Monkey> = Default::default();
     for i in 0..(lines.len() + 1) / 7 {
         monkeys.push(parse_monkey(&lines[i * 7..i * 7 + 6]));
@@ -121,7 +121,7 @@ impl Aoc for Day11_1 {
     fn puzzle_name(&self) -> &str {
         "Monkey in the Middle"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut monkeys = parse_monkeys(lines);
         let mut throws: ThrowUpdate = Default::default();
         for m in &monkeys {
@@ -148,7 +148,7 @@ impl Aoc for Day11_2 {
     fn puzzle_name(&self) -> &str {
         "Monkey in the Middle 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut monkeys = parse_monkeys(lines);
         let mut throws: ThrowUpdate = Default::default();
 

@@ -23,8 +23,8 @@ impl aoc::Aoc for Day6_1 {
     fn puzzle_name(&self) -> &str {
         "Tuning Trouble"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
-        find_start(&lines[0].as_str(), 4).0.to_string()
+    fn solve(&self, lines: &[String]) -> String {
+        find_start(lines[0].as_str(), 4).0.to_string()
     }
 }
 
@@ -36,8 +36,8 @@ impl aoc::Aoc for Day6_2 {
     fn puzzle_name(&self) -> &str {
         "Tuning Trouble 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
-        find_start(&lines[0].as_str(), 14).0.to_string()
+    fn solve(&self, lines: &[String]) -> String {
+        find_start(lines[0].as_str(), 14).0.to_string()
     }
 }
 

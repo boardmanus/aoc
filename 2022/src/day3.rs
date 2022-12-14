@@ -22,12 +22,7 @@ fn rucksack_from_str<'a>(item_str: &'a str) -> Result<RuckSack<'a>, Error> {
 }
 
 fn dup_item_str(a: &str, b: &str) -> Option<char> {
-    for c in a.chars() {
-        if b.find(c).is_some() {
-            return Some(c);
-        }
-    }
-    None
+    a.chars().find(|&c| b.find(c).is_some())
 }
 
 fn dup_item(rucksack: &RuckSack) -> Option<char> {
@@ -53,12 +48,12 @@ impl aoc::Aoc for Day3_1 {
     fn puzzle_name(&self) -> &str {
         "Rucksack Priority Sum"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
             .flat_map(|line| rucksack_from_str(line))
             .flat_map(|rucksack| dup_item(&rucksack))
-            .map(|item| item_priority(item))
+            .map(item_priority)
             .sum::<u32>()
             .to_string()
     }
@@ -80,12 +75,8 @@ fn common_item(group: &ElfGroup) -> Option<char> {
     let a = &group.rucksacks[0];
     let b = &group.rucksacks[1];
     let c = &group.rucksacks[2];
-    for ci in a.chars() {
-        if b.find(ci).is_some() && c.find(ci).is_some() {
-            return Some(ci);
-        }
-    }
-    None
+    a.chars()
+        .find(|&ci| b.find(ci).is_some() && c.find(ci).is_some())
 }
 pub struct Day3_2;
 impl aoc::Aoc for Day3_2 {
@@ -95,12 +86,12 @@ impl aoc::Aoc for Day3_2 {
     fn puzzle_name(&self) -> &str {
         "Rucksack Card Sum"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .chunks(3)
-            .map(|chunk| ElfGroup::new(chunk))
+            .map(ElfGroup::new)
             .flat_map(|group| common_item(&group))
-            .map(|item| item_priority(item))
+            .map(item_priority)
             .sum::<u32>()
             .to_string()
     }

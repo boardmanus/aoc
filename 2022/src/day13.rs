@@ -9,7 +9,7 @@ use nom::{
     character::complete::{char, digit1},
     combinator::map_res,
     multi::separated_list0,
-    sequence::{delimited, tuple},
+    sequence::delimited,
     IResult,
 };
 
@@ -35,8 +35,8 @@ fn lines_to_packets(lines: &[String]) -> Vec<Packet> {
 
 fn compare_pkts(p1: &Packet, p2: &Packet) -> Ordering {
     match (p1, p2) {
-        (Arr(a), Num(n)) => compare_pkts(p1, &Arr(vec![Num(*n)])),
-        (Num(n), Arr(a)) => compare_pkts(&Arr(vec![Num(*n)]), p2),
+        (Arr(_a), Num(n)) => compare_pkts(p1, &Arr(vec![Num(*n)])),
+        (Num(n), Arr(_a)) => compare_pkts(&Arr(vec![Num(*n)]), p2),
         (Num(a), Num(b)) => a.cmp(b),
         (Arr(a), Arr(b)) => {
             for i in 0..a.len() {
@@ -61,8 +61,8 @@ impl Aoc for Day13_1 {
     fn puzzle_name(&self) -> &str {
         "Distress Signal"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
-        lines_to_packet_pairs(&lines)
+    fn solve(&self, lines: &[String]) -> String {
+        lines_to_packet_pairs(lines)
             .iter()
             .enumerate()
             .filter(|pair| pair.1 .0.cmp(&pair.1 .1) == Ordering::Less)
@@ -79,7 +79,7 @@ impl Aoc for Day13_2 {
     fn puzzle_name(&self) -> &str {
         "Distress Signal 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let two = parse_packet("[[2]]").unwrap().1;
         let six = parse_packet("[[6]]").unwrap().1;
         let mut pkts = lines_to_packets(lines);
@@ -87,7 +87,7 @@ impl Aoc for Day13_2 {
         pkts.push(six.clone());
 
         pkts.iter()
-            .sorted_by(|a, b| compare_pkts(*a, *b))
+            .sorted_by(|a, b| compare_pkts(a, b))
             .enumerate()
             .filter(|p| *p.1 == two || *p.1 == six)
             .map(|p| p.0 + 1)
@@ -98,10 +98,16 @@ impl Aoc for Day13_2 {
 
 use crate::day13::Packet::{Arr, Num};
 
-#[derive(PartialOrd, PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 enum Packet {
     Num(usize),
     Arr(Vec<Packet>),
+}
+
+impl PartialOrd for Packet {
+    fn partial_cmp(&self, other: &Packet) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for Packet {

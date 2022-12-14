@@ -24,7 +24,7 @@ struct State<const N: usize> {
     pos: [Pos; N],
 }
 
-fn to_move(line: &String) -> Moves {
+fn to_move(line: &str) -> Moves {
     let mut move_strs = line.split_whitespace();
     let mv_dir = to_dir(move_strs.next().unwrap());
     let num = move_strs.next().unwrap().parse::<usize>().unwrap();
@@ -65,7 +65,7 @@ impl Aoc for Day9_1 {
     fn puzzle_name(&self) -> &str {
         "Rope Bridge"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut dmoves: Vec<DPos> = Default::default();
         lines
             .iter()
@@ -91,7 +91,7 @@ impl Aoc for Day9_2 {
     fn puzzle_name(&self) -> &str {
         "Rope Bridge 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut dmoves: Vec<DPos> = Default::default();
         lines
             .iter()
@@ -101,7 +101,7 @@ impl Aoc for Day9_2 {
         dmoves.iter().fold(
             State::<10> { pos: [(0, 0); 10] },
             |state, dpos| -> State<10> {
-                let new_state = update_state(&state, &dpos);
+                let new_state = update_state(&state, dpos);
                 tail_positions.insert(*new_state.pos.last().unwrap());
                 new_state
             },

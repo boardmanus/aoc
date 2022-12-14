@@ -49,8 +49,8 @@ impl Aoc for Day7_1 {
     fn puzzle_name(&self) -> &str {
         "No Space"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
-        process_cmds(&lines[..])
+    fn solve(&self, lines: &[String]) -> String {
+        process_cmds(lines)
             .values()
             .filter(|size| *size < &100000)
             .sum::<usize>()
@@ -66,14 +66,14 @@ impl Aoc for Day7_2 {
     fn puzzle_name(&self) -> &str {
         "No Space 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
-        let file_counts = process_cmds(&lines[..]);
+    fn solve(&self, lines: &[String]) -> String {
+        let file_counts = process_cmds(lines);
         let used_space = file_counts["/"];
         let free_space = 70000000 - used_space;
         let delete_size = 30000000 - free_space;
         file_counts
             .iter()
-            .filter(|a| *a.1 >= delete_size as usize)
+            .filter(|a| *a.1 >= delete_size)
             .map(|v| v.1)
             .min()
             .unwrap()

@@ -2,10 +2,10 @@ use crate::aoc;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-fn partition_input(lines: &Vec<String>) -> (&[String], &[String]) {
+fn partition_input(lines: &[String]) -> (&[String], &[String]) {
     for i in 0..(lines.len() - 1) {
         let line = &lines[i];
-        if line == "" {
+        if line.is_empty() {
             return (&lines[..i - 1], &lines[i + 1..]);
         }
     }
@@ -50,7 +50,7 @@ impl aoc::Aoc for Day5_1 {
     fn puzzle_name(&self) -> &str {
         "Supply Stacks"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let (stack_strs, move_strs) = partition_input(lines);
         let mut stacks = stacks_from_strs(stack_strs);
         let moves = moves_from_strs(move_strs);
@@ -76,7 +76,7 @@ impl aoc::Aoc for Day5_2 {
     fn puzzle_name(&self) -> &str {
         "Supply Stacks 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let (stack_strs, move_strs) = partition_input(lines);
         let mut stacks = stacks_from_strs(stack_strs);
         let moves = moves_from_strs(move_strs);

@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::aoc::Aoc;
 
-fn to_rows(lines: &Vec<String>) -> Vec<Vec<usize>> {
+fn to_rows(lines: &[String]) -> Vec<Vec<usize>> {
     lines
         .iter()
         .map(|line| {
@@ -14,7 +14,7 @@ fn to_rows(lines: &Vec<String>) -> Vec<Vec<usize>> {
         .collect_vec()
 }
 
-fn to_matrix(lines: &Vec<String>) -> Array2D<usize> {
+fn to_matrix(lines: &[String]) -> Array2D<usize> {
     Array2D::from_rows(&to_rows(lines))
 }
 
@@ -30,7 +30,7 @@ impl Aoc for Day8_1 {
     fn puzzle_name(&self) -> &str {
         "Tree House"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let m = to_matrix(lines);
         let mut visible = 2 * (m.num_rows() + m.num_columns() - 2);
         let rows = m.as_rows();
@@ -77,7 +77,7 @@ impl Aoc for Day8_2 {
     fn puzzle_name(&self) -> &str {
         "Tree House 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let rows = to_rows(lines);
         let mut s = 0;
         for x in 1..rows[0].len() - 1 {

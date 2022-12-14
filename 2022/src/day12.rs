@@ -121,7 +121,7 @@ impl Aoc for Day12_1 {
     fn puzzle_name(&self) -> &str {
         "Hill Climbing"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let g = lines_to_graph(lines);
         let path = pathfinding::prelude::dijkstra(&g.s, |p| g.neighbors(p), |p| *p == g.e);
         (path.unwrap().0.len() - 1).to_string()
@@ -136,7 +136,7 @@ impl Aoc for Day12_2 {
     fn puzzle_name(&self) -> &str {
         "Hill Climb 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let mut g = lines_to_graph(lines);
         g.update_neighbours();
         g.find_lows()
@@ -145,12 +145,11 @@ impl Aoc for Day12_2 {
                 g.s = sp.clone();
                 let path =
                     pathfinding::prelude::dijkstra(sp, |p| g.n[p.1][p.0].clone(), |p| *p == g.e);
-                let l = if let Some(p) = path {
+                if let Some(p) = path {
                     p.0.len() - 1
                 } else {
                     1000000
-                };
-                l
+                }
             })
             .min()
             .unwrap()

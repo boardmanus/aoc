@@ -9,7 +9,7 @@ impl aoc::Aoc for Day1_1 {
     fn puzzle_name(&self) -> &str {
         "Calorie Counting"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let food = split_lines(lines);
         total_cals(&food).max().unwrap_or(0).to_string()
     }
@@ -23,7 +23,7 @@ impl aoc::Aoc for Day1_2 {
     fn puzzle_name(&self) -> &str {
         "Top 3 Calorie Counting"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         let food = split_lines(lines);
         let mut total_cals: Vec<u32> = total_cals(&food).collect();
         total_cals.sort_by(|a, b| a.cmp(b).reverse());
@@ -33,11 +33,11 @@ impl aoc::Aoc for Day1_2 {
 
 type ElfFood = Vec<u32>;
 
-pub fn total_cals(food: &Vec<ElfFood>) -> impl Iterator<Item = u32> + '_ {
-    food.iter().map(|food| food.into_iter().sum())
+pub fn total_cals(food: &[ElfFood]) -> impl Iterator<Item = u32> + '_ {
+    food.iter().map(|food| food.iter().sum())
 }
 
-pub fn split_lines(lines: &Vec<String>) -> Vec<ElfFood> {
+pub fn split_lines(lines: &[String]) -> Vec<ElfFood> {
     let mut elves_food: Vec<ElfFood> = vec![ElfFood::new()];
     lines
         .iter()

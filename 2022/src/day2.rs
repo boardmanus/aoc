@@ -118,7 +118,7 @@ impl aoc::Aoc for Day2_1_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 1.1"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
             .flat_map(|line| RpsChallenge::from_str(line))
@@ -136,11 +136,11 @@ impl aoc::Aoc for Day2_1 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
-            .flat_map(|line| parse_line(line))
-            .map(|challenge| challenge_score(challenge))
+            .flat_map(|s| parse_line(s))
+            .map(challenge_score)
             .sum::<u32>()
             .to_string()
     }
@@ -154,11 +154,11 @@ impl aoc::Aoc for Day2_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 2"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
-            .flat_map(|line| parse_line_res(line))
-            .map(|challenge| challenge_score_res(challenge))
+            .flat_map(|s| parse_line_res(s))
+            .map(challenge_score_res)
             .sum::<u32>()
             .to_string()
     }
@@ -171,7 +171,7 @@ impl aoc::Aoc for Day2_2_2 {
     fn puzzle_name(&self) -> &str {
         "Paper, Scissors, Rock 2.1"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
             .flat_map(|line| RpsResult::from_str(line))
@@ -182,66 +182,66 @@ impl aoc::Aoc for Day2_2_2 {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum RPS {
+enum RpsVal {
     Rock,
     Paper,
     Scissors,
 }
 
 enum RPSResult {
-    LOSS,
-    DRAW,
-    WIN,
+    Loss,
+    Draw,
+    Win,
 }
 impl RPSResult {
     fn value(&self) -> u32 {
         match self {
-            RPSResult::LOSS => 0,
-            RPSResult::DRAW => 3,
-            RPSResult::WIN => 6,
+            RPSResult::Loss => 0,
+            RPSResult::Draw => 3,
+            RPSResult::Win => 6,
         }
     }
     fn from_str(rps_str: &str) -> Result<Self, u32> {
         match rps_str {
-            "X" => Ok(RPSResult::LOSS),
-            "Y" => Ok(RPSResult::DRAW),
-            "Z" => Ok(RPSResult::WIN),
+            "X" => Ok(RPSResult::Loss),
+            "Y" => Ok(RPSResult::Draw),
+            "Z" => Ok(RPSResult::Win),
             _ => Err(1),
         }
     }
 }
 
-impl FromStr for RPS {
+impl FromStr for RpsVal {
     type Err = u32;
     fn from_str(rps_str: &str) -> Result<Self, Self::Err> {
         match rps_str {
-            "A" | "X" => Ok(RPS::Rock),
-            "B" | "Y" => Ok(RPS::Paper),
-            "C" | "Z" => Ok(RPS::Scissors),
+            "A" | "X" => Ok(RpsVal::Rock),
+            "B" | "Y" => Ok(RpsVal::Paper),
+            "C" | "Z" => Ok(RpsVal::Scissors),
             _ => Err(1),
         }
     }
 }
 
-type Challenge = (RPS, RPS);
-type ChallengeRes = (RPS, RPSResult);
+type Challenge = (RpsVal, RpsVal);
+type ChallengeRes = (RpsVal, RPSResult);
 
 fn challenge_score(challenge: Challenge) -> u32 {
     let cscore = match challenge.0 {
-        RPS::Rock => match challenge.1 {
-            RPS::Rock => RPSResult::DRAW.value(),
-            RPS::Paper => RPSResult::WIN.value(),
-            RPS::Scissors => RPSResult::LOSS.value(),
+        RpsVal::Rock => match challenge.1 {
+            RpsVal::Rock => RPSResult::Draw.value(),
+            RpsVal::Paper => RPSResult::Win.value(),
+            RpsVal::Scissors => RPSResult::Loss.value(),
         },
-        RPS::Paper => match challenge.1 {
-            RPS::Rock => RPSResult::LOSS.value(),
-            RPS::Paper => RPSResult::DRAW.value(),
-            RPS::Scissors => RPSResult::WIN.value(),
+        RpsVal::Paper => match challenge.1 {
+            RpsVal::Rock => RPSResult::Loss.value(),
+            RpsVal::Paper => RPSResult::Draw.value(),
+            RpsVal::Scissors => RPSResult::Win.value(),
         },
-        RPS::Scissors => match challenge.1 {
-            RPS::Rock => RPSResult::WIN.value(),
-            RPS::Paper => RPSResult::LOSS.value(),
-            RPS::Scissors => RPSResult::DRAW.value(),
+        RpsVal::Scissors => match challenge.1 {
+            RpsVal::Rock => RPSResult::Win.value(),
+            RpsVal::Paper => RPSResult::Loss.value(),
+            RpsVal::Scissors => RPSResult::Draw.value(),
         },
     };
 
@@ -250,46 +250,46 @@ fn challenge_score(challenge: Challenge) -> u32 {
 
 fn challenge_score_res(challenge: ChallengeRes) -> u32 {
     let cscore = match challenge.0 {
-        RPS::Rock => score(match challenge.1 {
-            RPSResult::LOSS => RPS::Scissors,
-            RPSResult::DRAW => RPS::Rock,
-            RPSResult::WIN => RPS::Paper,
+        RpsVal::Rock => score(match challenge.1 {
+            RPSResult::Loss => RpsVal::Scissors,
+            RPSResult::Draw => RpsVal::Rock,
+            RPSResult::Win => RpsVal::Paper,
         }),
-        RPS::Paper => score(match challenge.1 {
-            RPSResult::LOSS => RPS::Rock,
-            RPSResult::DRAW => RPS::Paper,
-            RPSResult::WIN => RPS::Scissors,
+        RpsVal::Paper => score(match challenge.1 {
+            RPSResult::Loss => RpsVal::Rock,
+            RPSResult::Draw => RpsVal::Paper,
+            RPSResult::Win => RpsVal::Scissors,
         }),
-        RPS::Scissors => score(match challenge.1 {
-            RPSResult::LOSS => RPS::Paper,
-            RPSResult::DRAW => RPS::Scissors,
-            RPSResult::WIN => RPS::Rock,
+        RpsVal::Scissors => score(match challenge.1 {
+            RPSResult::Loss => RpsVal::Paper,
+            RPSResult::Draw => RpsVal::Scissors,
+            RPSResult::Win => RpsVal::Rock,
         }),
     };
 
     cscore + challenge.1.value()
 }
 
-fn score(rps: RPS) -> u32 {
+fn score(rps: RpsVal) -> u32 {
     match rps {
-        RPS::Rock => 1,
-        RPS::Paper => 2,
-        RPS::Scissors => 3,
+        RpsVal::Rock => 1,
+        RpsVal::Paper => 2,
+        RpsVal::Scissors => 3,
     }
 }
-fn parse_line(line: &String) -> Result<Challenge, u32> {
+fn parse_line(line: &str) -> Result<Challenge, u32> {
     let rps = line
         .split(' ')
-        .map(|rps_str| RPS::from_str(rps_str).unwrap())
-        .collect::<Vec<RPS>>();
+        .map(|rps_str| RpsVal::from_str(rps_str).unwrap())
+        .collect::<Vec<RpsVal>>();
 
     Ok((rps[0], rps[1]))
 }
 
-fn parse_line_res(line: &String) -> Result<ChallengeRes, u32> {
+fn parse_line_res(line: &str) -> Result<ChallengeRes, u32> {
     let rps_res_str = line.split(' ').collect::<Vec<&str>>();
 
-    let rps = RPS::from_str(rps_res_str[0])?;
+    let rps = RpsVal::from_str(rps_res_str[0])?;
     let res = RPSResult::from_str(rps_res_str[1])?;
 
     Ok((rps, res))
@@ -305,49 +305,40 @@ mod tests {
 
     #[test]
     fn test_parse_rps() {
-        assert_eq!(
-            parse_line(&String::from("A X")).unwrap(),
-            (RPS::Rock, RPS::Rock)
-        );
-        assert_eq!(
-            parse_line(&String::from("B Y")).unwrap(),
-            (RPS::Paper, RPS::Paper)
-        );
-        assert_eq!(
-            parse_line(&String::from("C Z")).unwrap(),
-            (RPS::Scissors, RPS::Scissors)
-        );
+        assert_eq!(parse_line("A X"), Ok((RpsVal::Rock, RpsVal::Rock)));
+        assert_eq!(parse_line("B Y"), Ok((RpsVal::Paper, RpsVal::Paper)));
+        assert_eq!(parse_line("C Z"), Ok((RpsVal::Scissors, RpsVal::Scissors)));
     }
 
     #[test]
     fn test_challenge_score() {
         assert_eq!(
-            challenge_score((RPS::Rock, RPS::Scissors)),
-            RPSResult::LOSS.value() + score(RPS::Scissors)
+            challenge_score((RpsVal::Rock, RpsVal::Scissors)),
+            RPSResult::Loss.value() + score(RpsVal::Scissors)
         );
         assert_eq!(
             challenge_score2(&RpsChallenge(ROCK, SCISSORS)),
             LOSS_SCORE + SCISSORS_SCORE
         );
         assert_eq!(
-            challenge_score((RPS::Scissors, RPS::Rock)),
-            RPSResult::WIN.value() + score(RPS::Rock)
+            challenge_score((RpsVal::Scissors, RpsVal::Rock)),
+            RPSResult::Win.value() + score(RpsVal::Rock)
         );
         assert_eq!(
             challenge_score2(&RpsChallenge(SCISSORS, ROCK)),
             WIN_SCORE + ROCK_SCORE
         );
         assert_eq!(
-            challenge_score((RPS::Paper, RPS::Scissors)),
-            RPSResult::WIN.value() + score(RPS::Scissors)
+            challenge_score((RpsVal::Paper, RpsVal::Scissors)),
+            RPSResult::Win.value() + score(RpsVal::Scissors)
         );
         assert_eq!(
             challenge_score2(&RpsChallenge(PAPER, SCISSORS)),
             WIN_SCORE + SCISSORS_SCORE
         );
         assert_eq!(
-            challenge_score((RPS::Paper, RPS::Paper)),
-            RPSResult::DRAW.value() + score(RPS::Paper)
+            challenge_score((RpsVal::Paper, RpsVal::Paper)),
+            RPSResult::Draw.value() + score(RpsVal::Paper)
         );
         assert_eq!(
             challenge_score2(&RpsChallenge(PAPER, PAPER)),
@@ -371,24 +362,24 @@ mod tests {
     #[test]
     fn test_challenge_score_res() {
         assert_eq!(
-            challenge_score_res((RPS::Rock, RPSResult::LOSS)),
-            RPSResult::LOSS.value() + score(RPS::Scissors)
+            challenge_score_res((RpsVal::Rock, RPSResult::Loss)),
+            RPSResult::Loss.value() + score(RpsVal::Scissors)
         );
         assert_eq!(
             result_score(&RpsResult(ROCK, LOSS_SCORE)),
             LOSS_SCORE + SCISSORS_SCORE
         );
         assert_eq!(
-            challenge_score_res((RPS::Scissors, RPSResult::WIN)),
-            RPSResult::WIN.value() + score(RPS::Rock)
+            challenge_score_res((RpsVal::Scissors, RPSResult::Win)),
+            RPSResult::Win.value() + score(RpsVal::Rock)
         );
         assert_eq!(
             result_score(&RpsResult(SCISSORS, WIN_SCORE)),
             WIN_SCORE + ROCK_SCORE
         );
         assert_eq!(
-            challenge_score_res((RPS::Paper, RPSResult::WIN)),
-            RPSResult::WIN.value() + score(RPS::Scissors)
+            challenge_score_res((RpsVal::Paper, RPSResult::Win)),
+            RPSResult::Win.value() + score(RpsVal::Scissors)
         );
         assert_eq!(
             result_score(&RpsResult(PAPER, WIN_SCORE)),
@@ -396,8 +387,8 @@ mod tests {
         );
 
         assert_eq!(
-            challenge_score_res((RPS::Paper, RPSResult::DRAW)),
-            RPSResult::DRAW.value() + score(RPS::Paper)
+            challenge_score_res((RpsVal::Paper, RPSResult::Draw)),
+            RPSResult::Draw.value() + score(RpsVal::Paper)
         );
         assert_eq!(
             result_score(&RpsResult(PAPER, DRAW_SCORE)),

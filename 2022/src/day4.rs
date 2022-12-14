@@ -43,7 +43,7 @@ impl FromStr for AssignmentPair {
     fn from_str(ass_str: &str) -> Result<Self, Error> {
         let ass = ass_str
             .split(',')
-            .flat_map(|elf| Assignment::from_str(elf))
+            .flat_map(Assignment::from_str)
             .collect::<Vec<Assignment>>();
         if ass.len() != 2 {
             return Err(Error::ParseAssignmentPairs);
@@ -71,7 +71,7 @@ impl aoc::Aoc for Day4_1 {
     fn puzzle_name(&self) -> &str {
         "Camp Cleanup"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
@@ -88,7 +88,7 @@ impl aoc::Aoc for Day4_2 {
     fn puzzle_name(&self) -> &str {
         "Camp Cleanup all overlaps"
     }
-    fn solve(&self, lines: &Vec<String>) -> String {
+    fn solve(&self, lines: &[String]) -> String {
         lines
             .iter()
             .flat_map(|line| AssignmentPair::from_str(line))
