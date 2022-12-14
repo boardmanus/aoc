@@ -52,6 +52,7 @@ fn compare_pkts(p1: &Packet, p2: &Packet) -> Ordering {
         }
     }
 }
+
 pub struct Day13_1;
 impl Aoc for Day13_1 {
     fn day(&self) -> u32 {
@@ -64,7 +65,7 @@ impl Aoc for Day13_1 {
         lines_to_packet_pairs(&lines)
             .iter()
             .enumerate()
-            .filter(|pair| compare_pkts(&pair.1 .0, &pair.1 .1) == Ordering::Less)
+            .filter(|pair| pair.1 .0.cmp(&pair.1 .1) == Ordering::Less)
             .fold(0, |s, pair| s + pair.0 + 1)
             .to_string()
     }
@@ -84,19 +85,29 @@ impl Aoc for Day13_2 {
         let mut pkts = lines_to_packets(lines);
         pkts.push(two.clone());
         pkts.push(six.clone());
-        pkts.sort_by(compare_pkts);
-        let two_idx = pkts.iter().enumerate().find(|p| *p.1 == two).unwrap().0 + 1;
-        let six_idx = pkts.iter().enumerate().find(|p| *p.1 == six).unwrap().0 + 1;
-        (two_idx * six_idx).to_string()
+
+        pkts.iter()
+            .sorted_by(|a, b| compare_pkts(*a, *b))
+            .enumerate()
+            .filter(|p| *p.1 == two || *p.1 == six)
+            .map(|p| p.0 + 1)
+            .product::<usize>()
+            .to_string()
     }
 }
 
 use crate::day13::Packet::{Arr, Num};
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialOrd, PartialEq, Eq, Debug, Clone)]
 enum Packet {
     Num(usize),
     Arr(Vec<Packet>),
+}
+
+impl Ord for Packet {
+    fn cmp(&self, p2: &Packet) -> Ordering {
+        compare_pkts(self, p2)
+    }
 }
 
 fn num_packet(i: &str) -> Result<Packet, <usize as FromStr>::Err> {
@@ -111,7 +122,7 @@ fn parse_packet(s: &str) -> IResult<&str, Packet> {
         char(']'),
     )(s)?;
 
-    Ok((p.0, Packet::Arr(p.1)))
+    Ok((p.0, Arr(p.1)))
 }
 
 #[cfg(test)]
@@ -157,6 +168,27 @@ mod tests {
     fn test_soln2() {
         let input_strs = as_vstrings(&INPUT[0..]);
         assert_eq!(Day13_2.solve(&input_strs), 140.to_string());
+    }
+
+    #[test]
+    fn test_packet_ordering() {
+        assert_eq!(
+            Arr(vec![Arr(Default::default())]).cmp(&Arr(vec![Arr(vec![Arr(Default::default())])])),
+            Ordering::Less
+        );
+        assert_eq!(
+            Arr(vec![Arr(Default::default())]).cmp(&Arr(vec![Num(1)])),
+            Ordering::Less
+        );
+    }
+
+    #[test]
+    fn test_packet_equality() {
+        let a = Arr(vec![Num(1), Num(2), Arr(vec![Num(3)])]);
+        let b = Arr(vec![Num(1), Num(2), Arr(vec![Num(3)])]);
+        let c = Arr(vec![Num(1), Num(2), Arr(vec![Num(3), Num(4)])]);
+        assert_eq!(a, b);
+        assert_ne!(a, c);
     }
 
     #[test]

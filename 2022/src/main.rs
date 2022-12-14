@@ -7,6 +7,7 @@ mod day10;
 mod day11;
 mod day12;
 mod day13;
+mod day14;
 mod day2;
 mod day3;
 mod day4;
@@ -47,6 +48,8 @@ fn main() {
         //&day12::Day12_2,
         &day13::Day13_1,
         &day13::Day13_2,
+        &day14::Day14_1,
+        &day14::Day14_2,
     ];
 
     puzzles.into_iter().for_each(|puzzle| {
