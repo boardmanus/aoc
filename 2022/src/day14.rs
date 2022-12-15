@@ -58,7 +58,7 @@ struct Map {
     minx: i32,
     max: Pos,
     stride: i32,
-    m: Vec<bool>,
+    m: Vec<char>,
 }
 
 impl Display for Map {
@@ -66,11 +66,12 @@ impl Display for Map {
         self.m
             .chunks(self.stride.try_into().unwrap())
             .fold(Ok(()), |_, row| {
-                let row_str = row
-                    .iter()
-                    .map(|v| if *v { '#' } else { '.' })
-                    .collect::<String>();
-                writeln!(f, "{row_str}")
+                let (s, e) = if row.len() > 80 {
+                    (row.len() / 2 - 40, row.len() / 2 + 40)
+                } else {
+                    (0, row.len())
+                };
+                writeln!(f, "{}", row[s..e].iter().collect::<String>())
             })
     }
 }
@@ -84,29 +85,52 @@ impl Map {
             minx: min.0,
             max,
             stride,
-            m: vec![false; len.try_into().unwrap()],
+            m: vec!['.'; len.try_into().unwrap()],
         };
         formations.iter().for_each(|f| map.add_formations(f));
         map
     }
 
-    fn drop(&self, sand_pos: Pos) -> Option<Pos> {
-        if sand_pos.1 >= self.max.1 || sand_pos.0 < 0 || sand_pos.0 >= self.max.0 {
+    fn lower(&self, pos: Pos) -> Option<Pos> {
+        if pos.1 >= self.max.1 || pos.0 < 0 || pos.0 >= self.max.0 {
             None
-        } else if !self.is_solid(&(sand_pos.0, sand_pos.1 + 1)) {
-            self.drop((sand_pos.0, sand_pos.1 + 1))
-        } else if !self.is_solid(&(sand_pos.0 - 1, sand_pos.1 + 1)) {
-            self.drop((sand_pos.0 - 1, sand_pos.1 + 1))
-        } else if !self.is_solid(&(sand_pos.0 + 1, sand_pos.1 + 1)) {
-            self.drop((sand_pos.0 + 1, sand_pos.1 + 1))
+        } else if let Some(new_pos) = [0, -1, 1]
+            .iter()
+            .map(|dx| (pos.0 + dx, pos.1 + 1))
+            .find(|p| !self.is_solid(p))
+        {
+            Some(new_pos)
         } else {
-            Some(sand_pos)
+            Some(pos)
         }
     }
 
-    fn add(&mut self, p: &Pos) {
+    fn drop(&self, sand_pos: Pos) -> Option<Pos> {
+        let mut curr_pos = sand_pos;
+        while let Some(new_pos) = self.lower(curr_pos) {
+            if new_pos == curr_pos {
+                return Some(curr_pos);
+            }
+            curr_pos = new_pos
+        }
+        None
+    }
+
+    fn fill(&mut self, sand_pos: Pos) -> usize {
+        let mut amount = 0;
+        while let Some(spos) = self.drop(sand_pos) {
+            amount += 1;
+            self.add(&spos, 'o');
+            if spos == (500, 0) {
+                break;
+            }
+        }
+        amount
+    }
+
+    fn add(&mut self, p: &Pos, c: char) {
         let i = self.index(p);
-        self.m[i] = true;
+        self.m[i] = c;
     }
 
     fn add_line(&mut self, p1: &Pos, p2: &Pos) {
@@ -115,7 +139,7 @@ impl Map {
         for x in 0..=(p2.0 - p1.0).abs() {
             for y in 0..=(p2.1 - p1.1).abs() {
                 let i = self.index(&(minx + x, miny + y));
-                self.m[i] = true;
+                self.m[i] = '#';
             }
         }
     }
@@ -134,7 +158,7 @@ impl Map {
     }
 
     fn is_solid(&self, pos: &Pos) -> bool {
-        self.m[self.index(pos)]
+        self.m[self.index(pos)] != '.'
     }
 }
 pub struct Day14_1;
@@ -148,19 +172,8 @@ impl Aoc for Day14_1 {
     fn solve(&self, lines: &[String]) -> String {
         let formations = lines_to_formations(lines);
         let mut map = Map::new(&formations);
-
-        let mut amount = 0;
-        loop {
-            let spos = map.drop((500, 0));
-            if spos.is_none() {
-                break;
-            }
-            amount += 1;
-            if spos.unwrap() == (500, 0) {
-                break;
-            }
-            map.add(&spos.unwrap());
-        }
+        let amount = map.fill((500, 0));
+        //println!("{map}");
         amount.to_string()
     }
 }
@@ -178,19 +191,8 @@ impl Aoc for Day14_2 {
         let max = max_pos(&formations);
         formations.push(vec![(0, max.1 + 2), (1000, max.1 + 2)]);
         let mut map = Map::new(&formations);
-
-        let mut amount = 0;
-        loop {
-            let spos = map.drop((500, 0));
-            if spos.is_none() {
-                break;
-            }
-            amount += 1;
-            if spos.unwrap() == (500, 0) {
-                break;
-            }
-            map.add(&spos.unwrap());
-        }
+        let amount = map.fill((500, 0));
+        //println!("{map}");
         amount.to_string()
     }
 }
