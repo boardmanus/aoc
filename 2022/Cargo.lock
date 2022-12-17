@@ -83,6 +83,7 @@ dependencies = [
  "nom",
  "num-traits",
  "pathfinding",
+ "rangemap",
  "regex",
 ]
 
@@ -307,6 +308,12 @@ checksum = "bbe448f377a7d6961e30f5955f9b8d106c3f5e449d493ee1b125c1d43c2b5179"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rangemap"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ed5f515fe4093fa60900ac1918c9ea73f18189114588ec9b99941e22cc2aedd"
 
 [[package]]
 name = "regex"
