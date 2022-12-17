@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<style>
+		html,
+		body {
+			width: 100%;
+			margin: 0;
+			padding: 0;
+			background: transparent;
+			font-family: "Open Sans", sans-serif;
+		}
+
+		svg {
+			width: 100%;
+			height: auto;
+		}
+
+		svg.background {
+			background-color: #000;
+		}
+
+		svg .path {
+			stroke: #ffc107;
+			stroke-width: 14px;
+			stroke-linecap: round;
+		}
+
+		svg .cell-start {
+			color: rgb(216, 27, 96);
+		}
+
+		svg .cell-end {
+			color: rgb(30, 136, 229);
+		}
+
+		svg .cell-elev0 {
+			color: rgb(30, 30, 30);
+		}
+
+		svg .cell-elev1 {
+			color: rgb(37, 37, 37);
+		}
+
+		svg .cell-elev2 {
+			color: rgb(44, 44, 44);
+		}
+
+		svg .cell-elev3 {
+			color: rgb(51, 51, 51);
+		}
+
+		svg .cell-elev4 {
+			color: rgb(58, 58, 58);
+		}
+
+		svg .cell-elev5 {
+			color: rgb(65, 65, 65);
+		}
+
+		svg .cell-elev6 {
+			color: rgb(72, 72, 72);
+		}
+
+		svg .cell-elev7 {
+			color: rgb(79, 79, 79);
+		}
+
+		svg .cell-elev8 {
+			color: rgb(86, 86, 86);
+		}
+
+		svg .cell-elev9 {
+			color: rgb(93, 93, 93);
+		}
+
+		svg .cell-elev10 {
+			color: rgb(100, 100, 100);
+		}
+
+		svg .cell-elev11 {
+			color: rgb(107, 107, 107);
+		}
+
+		svg .cell-elev12 {
+			color: rgb(114, 114, 114);
+		}
+
+		svg .cell-elev13 {
+			color: rgb(121, 121, 121);
+		}
+
+		svg .cell-elev14 {
+			color: rgb(128, 128, 128);
+		}
+
+		svg .cell-elev15 {
+			color: rgb(135, 135, 135);
+		}
+
+		svg .cell-elev16 {
+			color: rgb(142, 142, 142);
+		}
+
+		svg .cell-elev17 {
+			color: rgb(149, 149, 149);
+		}
+
+		svg .cell-elev18 {
+			color: rgb(156, 156, 156);
+		}
+
+		svg .cell-elev19 {
+			color: rgb(163, 163, 163);
+		}
+
+		svg .cell-elev20 {
+			color: rgb(170, 170, 170);
+		}
+
+		svg .cell-elev21 {
+			color: rgb(177, 177, 177);
+		}
+
+		svg .cell-elev22 {
+			color: rgb(184, 184, 184);
+		}
+
+		svg .cell-elev23 {
+			color: rgb(191, 191, 191);
+		}
+
+		svg .cell-elev24 {
+			color: rgb(198, 198, 198);
+		}
+
+		svg .cell-elev25 {
+			color: rgb(205, 205, 205);
+		}
+
+		#controls {
+			padding: .2em;
+			background: #222;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			color: #ddd;
+			margin-bottom: .5em;
+
+			position: relative;
+			overflow: hidden;
+			padding-top: .4em;
+		}
+
+		#controls,
+		#controls button {
+			font-size: .8rem;
+		}
+
+		button {
+			border: 2px solid #444;
+			border-radius: 4px;
+			color: inherit;
+			background: transparent;
+			cursor: pointer;
+			padding: .4em .8em;
+			margin-right: .2em;
+		}
+
+		button:hover {
+			background: #333;
+		}
+
+		#bar {
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 0;
+			height: 2px;
+			background: rgb(216, 27, 96);
+		}
+
+		input[type=file] {
+			margin-left: 1em;
+		}
+
+		#content-wrapper {
+			position: relative;
+		}
+
+		#content-fg {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="content"></div>
+
+	<script type="module">
+		import init, { Grid } from "./pkg/day17.js";
+
+		async function main() {
+
+			// wait for wasm to be actually loaded
+			await init();
+
+
+		};
+		main();
+	</script>
+
+</body>
+
+</html>
