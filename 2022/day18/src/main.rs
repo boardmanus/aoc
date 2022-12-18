@@ -1,7 +1,12 @@
+#[macro_use]
+extern crate impl_ops;
+use impl_ops::impl_op_ex;
 use std::collections::HashSet;
+use std::ops;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Cube(i64, i64, i64);
+type Offset = (i64, i64, i64);
 
 impl Cube {
     fn in_bounds(&self, bounds: &(Cube, Cube)) -> bool {
@@ -15,12 +20,16 @@ impl Cube {
     }
 }
 
+impl_op_ex!(+ |a: &Cube, b: &Offset| -> Cube {
+    Cube(a.0 + b.0, a.1 + b.1, a.2 + b.2)
+});
+
 #[derive(Debug, PartialEq)]
 struct Droplet {
     cubes: HashSet<Cube>,
 }
 
-static ADJACENCY: [(i64, i64, i64); 6] = [
+static ADJACENCY: [Offset; 6] = [
     (1, 0, 0),
     (-1, 0, 0),
     (0, 1, 0),
@@ -33,7 +42,7 @@ impl Droplet {
     fn parse(input: &str) -> Droplet {
         let re = regex::Regex::new(r"^(\d+),(\d+),(\d+)$").unwrap();
         let cubes = input
-            .split("\n")
+            .split('\n')
             .flat_map(|s| {
                 if !s.is_empty() {
                     let captures = re.captures(s).unwrap();
@@ -50,22 +59,28 @@ impl Droplet {
         Droplet { cubes }
     }
 
-    fn num_adjacent(&self, cube: &Cube, contained_cubes: &HashSet<Cube>) -> i64 {
-        let mut adjacent: Vec<&Cube> = Default::default();
-        ADJACENCY.iter().fold(0, |a, d| {
-            let test_cube = Cube(cube.0 + d.0, cube.1 + d.1, cube.2 + d.2);
-            if self.cubes.contains(&test_cube) || contained_cubes.contains(&test_cube) {
-                a + 1
-            } else {
-                a
-            }
-        })
-    }
-
-    fn unconnected_faces(&self, contained_cubes: &HashSet<Cube>) -> i64 {
+    fn disconnected_faces(&self) -> usize {
         self.cubes
             .iter()
-            .map(|cube| 6 - self.num_adjacent(cube, contained_cubes))
+            .map(|cube| {
+                ADJACENCY
+                    .iter()
+                    .filter(|adj| !self.cubes.contains(&(cube + *adj)))
+                    .count()
+            })
+            .sum()
+    }
+
+    fn external_faces(&self) -> usize {
+        let external_cubes = self.floodfill();
+        self.cubes
+            .iter()
+            .map(|cube| {
+                ADJACENCY
+                    .iter()
+                    .filter(|adj| external_cubes.contains(&(cube + *adj)))
+                    .count()
+            })
             .sum()
     }
 
@@ -73,69 +88,45 @@ impl Droplet {
         let mut min = Cube(i64::MAX, i64::MAX, i64::MAX);
         let mut max = Cube(0, 0, 0);
         self.cubes.iter().for_each(|cube| {
-            min = Cube(min.0.min(cube.0), min.1.min(cube.1), min.2.min(cube.2));
-            max = Cube(max.0.max(cube.0), max.1.max(cube.1), max.2.max(cube.2));
+            min = Cube(
+                min.0.min(cube.0) - 1,
+                min.1.min(cube.1) - 1,
+                min.2.min(cube.2) - 1,
+            );
+            max = Cube(
+                max.0.max(cube.0) + 1,
+                max.1.max(cube.1) + 1,
+                max.2.max(cube.2) + 1,
+            );
         });
         (min, max)
     }
 
-    fn adjacent<F: FnMut(&Cube) -> bool>(&self, cube: &Cube, pred: F) -> Vec<Cube> {
-        ADJACENCY
-            .iter()
-            .map(|adj| Cube(cube.0 + adj.0, cube.1 + adj.1, cube.2 + adj.2))
-            .filter(pred)
-            .collect::<Vec<Cube>>()
-    }
-    fn adjacent_empty(&self, cube: &Cube) -> Vec<Cube> {
-        //impl Iterator<Item = &'_ Cube> + '_ {
-        self.adjacent(cube, |c| !self.cubes.contains(c))
-    }
-
-    fn floodfill<'a>(&'a self, start_cube: &'a Cube) -> HashSet<Cube> {
-        let (imin, imax) = self.bounds();
-        // extend bounds...
-        let bounds = (
-            Cube(imin.0 - 1, imin.1 - 1, imin.2 - 1),
-            Cube(imax.0 + 1, imax.1 + 1, imax.2 + 1),
-        );
-        let mut q: Vec<Cube> = vec![start_cube.clone()];
-        let mut res: HashSet<Cube> = Default::default();
+    fn floodfill(&self) -> HashSet<Cube> {
+        let bounds = self.bounds();
+        let mut q: Vec<Cube> = vec![bounds.0.clone()];
+        let mut visited: HashSet<Cube> = Default::default();
 
         while let Some(n) = q.pop() {
-            res.insert(n.clone());
-            let adj = self.adjacent(&n, |cube| {
-                !self.cubes.contains(cube) && !res.contains(cube) && cube.in_bounds(&bounds)
-            });
-
-            adj.iter().for_each(|cube| q.push(cube.clone()));
+            ADJACENCY
+                .iter()
+                .map(|adj| &n + adj)
+                .filter(|cube| {
+                    !self.cubes.contains(cube) && !visited.contains(cube) && cube.in_bounds(&bounds)
+                })
+                .for_each(|cube| q.push(cube));
+            visited.insert(n);
         }
-        res
+        visited
     }
 }
 
 fn solve_part1(input: &str) -> String {
-    let contained: HashSet<Cube> = Default::default();
-    Droplet::parse(input)
-        .unconnected_faces(&contained)
-        .to_string()
+    Droplet::parse(input).disconnected_faces().to_string()
 }
 
 fn solve_part2(input: &str) -> String {
-    let droplet = Droplet::parse(input);
-    let ff = droplet.floodfill(&Cube(1, 1, 2));
-    let (min, max) = droplet.bounds();
-    let mut contained_cubes: HashSet<Cube> = Default::default();
-    for x in min.0..=max.0 {
-        for y in min.1..=max.1 {
-            for z in min.2..=max.2 {
-                let c = Cube(x, y, z);
-                if !droplet.cubes.contains(&c) && !ff.contains(&c) {
-                    contained_cubes.insert(c);
-                }
-            }
-        }
-    }
-    droplet.unconnected_faces(&contained_cubes).to_string()
+    Droplet::parse(input).external_faces().to_string()
 }
 
 fn main() {
@@ -145,6 +136,7 @@ fn main() {
     println!("Part2: {res}");
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -176,20 +168,17 @@ mod tests {
     #[test]
     fn test_flood_fill() {
         let droplet = Droplet::parse(INPUT);
-        let start_cube = Cube(0, 0, 0);
-        let ff = droplet.floodfill(&start_cube);
+        let ff = droplet.floodfill();
         droplet
             .cubes
             .iter()
             .for_each(|cube| assert!(!ff.contains(cube)));
         assert!(!ff.contains(&Cube(2, 2, 5)));
         assert!(ff.contains(&Cube(0, 0, 0)));
-        println!("{:?}", ff);
     }
     #[test]
     fn test_input_bounds() {
         let droplet = Droplet::parse(include_str!("input.txt"));
-        println!("Input bounds = {:?}", droplet.bounds());
         assert!(droplet.cubes.contains(&Cube(0, 9, 8)));
     }
 
@@ -199,14 +188,7 @@ mod tests {
         assert!(Cube(15, 15, 15).in_bounds(&bounds));
         assert!(Cube(19, 19, 19).in_bounds(&bounds));
         assert!(Cube(11, 11, 11).in_bounds(&bounds));
-        assert!(!Cube(10, 11, 11).in_bounds(&bounds));
-    }
-    #[test]
-    fn test_num_adjacent() {
-        let droplet = Droplet::parse("1,2,3\n2,3,3\n");
-        let contained_cubes: HashSet<Cube> = Default::default();
-        assert_eq!(droplet.num_adjacent(&Cube(1, 2, 4), &contained_cubes), 1);
-        assert_eq!(droplet.num_adjacent(&Cube(1, 3, 3), &contained_cubes), 2);
+        assert!(!Cube(9, 11, 11).in_bounds(&bounds));
     }
 
     #[test]
