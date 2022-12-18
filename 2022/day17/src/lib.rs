@@ -1,27 +1,11 @@
 use std::{
-    cmp::{Ordering, Reverse},
-    collections::{hash_map::DefaultHasher, BinaryHeap, HashMap, HashSet, VecDeque},
+    collections::{hash_map::DefaultHasher, HashMap},
     fmt,
     fmt::Display,
     hash::{Hash, Hasher},
-    str::FromStr,
 };
 
 use itertools::Itertools;
-use nom::{
-    self,
-    branch::alt,
-    bytes::complete::tag,
-    character::{
-        complete::{alpha0, digit1},
-        is_alphabetic,
-    },
-    combinator::map_res,
-    multi::separated_list0,
-    sequence::{delimited, pair, preceded, separated_pair},
-    IResult,
-};
-use pathfinding::directed::bfs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Jet {
@@ -38,22 +22,20 @@ const ROCK_SQUARE: [u8; 2] = [0b11, 0b11];
 
 const ROCK_ORDER: [&[u8]; 5] = [&ROCK_MINUS, &ROCK_PLUS, &ROCK_L, &ROCK_PIPE, &ROCK_SQUARE];
 
-type Pos = (i64, i64);
+type Pos = (u64, u64);
 
 struct Chamber {
-    width: usize,
-    //rows: VecDeque<u8>,
     rows: Vec<u8>,
     rock_seq: usize,
+    rock: Rock,
 }
 
 impl Chamber {
-    fn new(width: usize) -> Chamber {
-        let v = Vec::<u8>::with_capacity(100000000);
+    fn new() -> Chamber {
         Chamber {
-            width,
-            rows: v,
-            rock_seq: 0,
+            rows: Default::default(),
+            rock_seq: 1,
+            rock: Rock::spawn(0, ROCK_ORDER[0]),
         }
     }
 
@@ -63,37 +45,62 @@ impl Chamber {
         rock
     }
 
-    fn height(&self) -> i64 {
-        self.rows.len() as i64
+    fn overlaps(&self, new_pos: &Pos) -> bool {
+        (0..self.rock.height()).any(|o| {
+            let rock_row = self.rock.row_from(o, new_pos);
+            let chamber_row = self.row(new_pos.1 + o);
+            (chamber_row & rock_row) != 0
+        })
     }
 
-    fn maybe_row(&self, y: i64) -> Option<u8> {
-        if y < 0 || y >= self.height() {
+    fn blow(&mut self, jet: Jet) -> Option<Pos> {
+        let new_pos = match jet {
+            Jet::Left => (self.rock.pos.0.checked_sub(1)?, self.rock.pos.1),
+            Jet::Right => (self.rock.pos.0 + 1, self.rock.pos.1),
+        };
+        if self.overlaps(&new_pos) {
             None
         } else {
-            Some(self.rows[y as usize])
+            self.rock.pos = new_pos;
+            Some(new_pos)
         }
     }
 
-    fn row(&self, offset: usize) -> Option<u8> {
-        if offset < self.rows.len() {
-            Some(self.rows[self.rows.len() - offset - 1])
+    fn height(&self) -> u64 {
+        self.rows.len() as u64
+    }
+
+    fn row(&self, y: u64) -> u8 {
+        const WALL: u8 = 0b10000000;
+        let r = if y < self.height() {
+            self.rows[y as usize]
         } else {
+            0
+        };
+        r | WALL
+    }
+
+    // Fall, maybe returning a rest position
+    fn fall(&mut self) -> Option<Pos> {
+        if self.rock.pos.1 == 0 || self.overlaps(&(self.rock.pos.0, self.rock.pos.1 - 1)) {
+            Some(self.rock.pos)
+        } else {
+            self.rock.pos.1 -= 1;
             None
         }
     }
 
-    fn embed(&mut self, rock: &Rock) {
-        for i in 0..rock.height() {
-            let y = rock.pos.1 + i;
-            let rock_row = rock.row(i as usize);
+    fn embed(&mut self) {
+        for i in 0..self.rock.height() {
+            let y = self.rock.pos.1 + i;
+            let rock_row = self.rock.row(i);
             if y >= self.height() {
                 self.rows.push(rock_row);
-                //self.rows.push_back(rock_row);
             } else {
-                self.rows[y as usize] = self.rows[y as usize] | rock_row;
+                self.rows[y as usize] |= rock_row;
             }
         }
+        self.rock = self.spawn_rock();
     }
 }
 struct Rock {
@@ -103,110 +110,44 @@ struct Rock {
 
 impl Display for Rock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, ".......");
+        writeln!(f, ".......")?;
         for i in 0..self.height() {
-            let r = self.row((self.height() - i - 1) as usize);
+            let r = self.row(self.height() - i - 1);
             for i in 0..7 {
                 let c = if (r & (1 << i)) == 0 { '.' } else { '@' };
-                write!(f, "{c}");
+                write!(f, "{c}")?;
             }
-            writeln!(f, "");
+            writeln!(f)?;
         }
         writeln!(f, ".......")
     }
 }
 impl Rock {
-    fn spawn(height: i64, shape: &'static [u8]) -> Rock {
+    fn spawn(height: u64, shape: &'static [u8]) -> Rock {
         Rock {
             shape,
-            pos: (2, 3 + height),
+            pos: (2, 3u64 + height),
         }
     }
 
-    fn height(&self) -> i64 {
-        self.shape.len() as i64
+    fn height(&self) -> u64 {
+        self.shape.len() as u64
     }
 
-    fn row(&self, y: usize) -> u8 {
-        self.shape[y as usize] << self.pos.0
+    fn row(&self, y: u64) -> u8 {
+        if y < self.height() {
+            self.shape[y as usize].rotate_left(self.pos.0 as u32)
+        } else {
+            0
+        }
     }
 
-    fn row_from(&self, y: i64, new_pos: &Pos) -> u8 {
-        if y < 0 || y >= self.height() {
+    fn row_from(&self, y: u64, new_pos: &Pos) -> u8 {
+        if y >= self.height() {
             0
         } else {
-            self.shape[y as usize] << new_pos.0
+            self.shape[y as usize].rotate_left(new_pos.0 as u32)
         }
-    }
-
-    fn maybe_row(&self, y: i64) -> Option<u8> {
-        if y < 0 || y >= self.height() {
-            None
-        } else {
-            Some(self.shape[y as usize] << self.pos.0)
-        }
-    }
-
-    fn blow(&mut self, jet: Jet, chamber: &Chamber) {
-        let offset: i64 = match jet {
-            Jet::Left => -1,
-            Jet::Right => 1,
-        };
-        let mask = match jet {
-            Jet::Left => 1 << 0,
-            Jet::Right => 1 << (chamber.width - 1),
-        };
-        let new_pos = (self.pos.0 + offset, self.pos.1);
-        for i in 0..self.shape.len() {
-            if self.row(i) & mask != 0 {
-                return;
-            }
-        }
-        if self.overlaps(&new_pos, chamber) {
-            return;
-        }
-        self.pos = new_pos;
-        /*
-        if (0..self.shape.len()).all(|i| (self.row(i) & mask) == 0)
-            && !self.overlaps(&new_pos, chamber)
-        {
-            self.pos = new_pos;
-        }
-        */
-    }
-
-    fn overlaps(&self, new_pos: &Pos, chamber: &Chamber) -> bool {
-        for o in 0..self.shape.len() as i64 {
-            let rock_row = self.row_from(o, new_pos);
-            if let Some(chamber_row) = chamber.maybe_row(new_pos.1 + o) {
-                if (rock_row & chamber_row) != 0 {
-                    return true;
-                }
-            } else {
-                return false;
-            }
-        }
-        false
-        /*
-        (0..self.shape.len() as i64).any(|o| {
-            let rock_row = self.row_from(o, new_pos);
-            let chamber_row = chamber.maybe_row(new_pos.1 + o).unwrap_or(0);
-            (rock_row & chamber_row) != 0
-        })
-        */
-    }
-    // Fall, maybe returning a rest position
-    fn fall(&mut self, chamber: &Chamber) -> Option<Pos> {
-        if self.pos.1 == 0 {
-            return Some(self.pos);
-        }
-
-        if self.overlaps(&(self.pos.0, self.pos.1 - 1), chamber) {
-            return Some(self.pos);
-        }
-
-        self.pos.1 -= 1;
-        None
     }
 }
 
@@ -221,97 +162,81 @@ fn parse_jetstreams(input: &str) -> Vec<Jet> {
         .collect_vec()
 }
 
-fn print_chamber_and_rock(chamber: &Chamber, rock: &Rock, max: i64) {
-    let maxy = (rock.pos.1 + rock.height() + 1).max(chamber.height() + 1);
-    let miny = 0.max(maxy - max);
-    let diff = maxy - miny;
+#[allow(dead_code)]
+impl Display for Chamber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let maxy = (self.rock.pos.1 + self.rock.height() + 1).max(self.height() + 1);
+        let miny = maxy.saturating_sub(20);
+        let diff = maxy - miny;
 
-    for dy in 0..=diff {
-        let h = maxy - dy;
-        let rock_row = rock.maybe_row(h - rock.pos.1).unwrap_or(0);
-        let chamber_row = chamber.maybe_row(h).unwrap_or(0);
-        print!("{h:>3} |");
-        for bit in 0..7 {
-            let v = 1 << bit;
-            let rr = (rock_row & v) != 0;
-            let cr = (chamber_row & v) != 0;
-            let c = if rr && cr {
-                'X'
-            } else if (rr) {
-                '@'
-            } else if (cr) {
-                '#'
-            } else {
-                '.'
-            };
-            print!("{c}");
+        for dy in 0..=diff {
+            let h = maxy - dy;
+            let rock_row = self
+                .rock
+                .row(h.checked_sub(self.rock.pos.1).unwrap_or(u64::MAX));
+            let chamber_row = self.row(h);
+            write!(f, "{h:>3} |")?;
+            for bit in 0..7 {
+                let v = 1 << bit;
+                let rr = (rock_row & v) != 0;
+                let cr = (chamber_row & v) != 0;
+                let c = if rr && cr {
+                    'X'
+                } else if rr {
+                    '@'
+                } else if cr {
+                    '#'
+                } else {
+                    '.'
+                };
+                write!(f, "{c}")?;
+            }
+            writeln!(f, "|")?;
         }
-        println!("|");
-    }
-    if miny == 0 {
-        println!("    +-------+");
-    } else {
-        println!("");
+        if miny == 0 {
+            writeln!(f, "    +-------+")?;
+        }
+        writeln!(f)
     }
 }
 
 pub fn solve_part1(input_str: &str) -> String {
     const NUM_ROCKS: usize = 2022;
-    const WIDTH: usize = 7;
     let jets = parse_jetstreams(input_str);
-    let mut chamber = Chamber::new(WIDTH);
-    let mut curr_rock = chamber.spawn_rock();
+    let mut chamber = Chamber::new();
     let mut jet_idx = 0;
     let mut count = 0;
 
     while count < NUM_ROCKS {
-        //let rock_count = jets.iter().fold(0, |count, jet| {
         let jet = jets[jet_idx];
-        jet_idx = (jet_idx + 1) % jets.len();
 
-        curr_rock.blow(jet, &chamber);
-        if let Some(stuck_pos) = curr_rock.fall(&chamber) {
-            chamber.embed(&curr_rock);
-            curr_rock = chamber.spawn_rock();
+        chamber.blow(jet);
+        if chamber.fall().is_some() {
+            chamber.embed();
             count += 1;
         }
+        jet_idx = (jet_idx + 1) % jets.len();
     }
-    //print_chamber_and_rock(&chamber, &curr_rock, 1000);
-    println!(
-        "possible repition = {}*{}={}",
-        jets.len(),
-        ROCK_ORDER.len(),
-        jets.len() * ROCK_ORDER.len()
-    );
+
     chamber.height().to_string()
 }
 pub fn solve_part2(input_str: &str) -> String {
     const NUM_ROCKS: usize = 1000000000000;
-    //const NUM_ROCKS: usize = 1000000;
-    const WIDTH: usize = 7;
     let jets = parse_jetstreams(input_str);
-    let mut chamber = Chamber::new(WIDTH);
-    let mut curr_rock = chamber.spawn_rock();
+    let mut chamber = Chamber::new();
     let mut jet_idx = 0;
     let mut count = 0;
     let mut num_blocks = 0;
-    let rep = jets.len() * ROCK_ORDER.len() * 7;
     let mut cache: HashMap<(usize, usize, u64), (usize, usize, usize)> = Default::default();
-    let mut cperiod: usize = 0;
     let hashsize = 10000;
-    let mut last_count = 0;
-    let mut gross_period = 57; //jets.len();
     let mut height: usize = 0;
 
     while num_blocks < NUM_ROCKS {
-        //let rock_count = jets.iter().fold(0, |count, jet| {
         let jet = jets[jet_idx];
-
-        curr_rock.blow(jet, &chamber);
-        if let Some(stuck_pos) = curr_rock.fall(&chamber) {
+        chamber.blow(jet);
+        if chamber.fall().is_some() {
             let last_height = chamber.height() as usize;
-            chamber.embed(&curr_rock);
-            curr_rock = chamber.spawn_rock();
+            chamber.embed();
             count += 1;
             num_blocks += 1;
             height += (chamber.height() as usize) - last_height;
@@ -322,16 +247,13 @@ pub fn solve_part2(input_str: &str) -> String {
 
                 if cache.contains_key(&hash) {
                     let (lcount, lheight, lhits) = cache[&hash];
-                    last_count = count;
-                    cperiod = count - lcount;
+                    let cperiod = count - lcount;
                     let hits = lhits + 1;
                     let dh = height - lheight;
                     cache.insert(hash, (count, height, hits));
-                    let max_period = cache.iter().filter(|x| x.1 .2 < 80).map(|x| x.1);
                     println!("Found match: #={hash:?}, hits={hits}, cnt={count}/{lcount} hgt={height}/{lheight}=> cperiod={cperiod}, dh={dh}, hashmapsize={}", cache.len());
                     let start = NUM_ROCKS - count;
                     let future_periods = start / cperiod;
-                    let last_seg = start % cperiod;
                     height += future_periods * dh;
                     num_blocks += future_periods * cperiod;
                     println!("Skip a few: num_blocks=>{num_blocks}, height=>{height}");
@@ -363,35 +285,29 @@ mod tests {
 
     #[test]
     fn test_rock() {
-        let chamber = Chamber::new(7);
-        assert_eq!(0b1100, 12);
-        assert_eq!(0b0011 << 2, 12);
-        assert_eq!(Rock::spawn(10, &ROCK_MINUS).row(0), 0b111100);
+        let mut chamber = Chamber::new();
 
-        let mut rock = Rock::spawn(10, &ROCK_MINUS);
-        assert_eq!(rock.pos.0, 2);
-        println!("{rock}");
-        rock.blow(Jet::Left, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 1);
-        rock.blow(Jet::Left, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 0);
-        rock.blow(Jet::Left, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 0);
-        rock.blow(Jet::Right, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 1);
-        rock.blow(Jet::Right, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 2);
-        rock.blow(Jet::Right, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 3);
-        rock.blow(Jet::Right, &chamber);
-        println!("{rock}");
-        assert_eq!(rock.pos.0, 3);
+        chamber.blow(Jet::Left);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 1);
+        chamber.blow(Jet::Left);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 0);
+        chamber.blow(Jet::Left);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 0);
+        chamber.blow(Jet::Right);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 1);
+        chamber.blow(Jet::Right);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 2);
+        chamber.blow(Jet::Right);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 3);
+        chamber.blow(Jet::Right);
+        println!("{}", chamber.rock);
+        assert_eq!(chamber.rock.pos.0, 3);
     }
     #[test]
     fn test_parse_jetstreams() {
