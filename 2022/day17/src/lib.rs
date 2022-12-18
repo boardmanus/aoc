@@ -228,7 +228,7 @@ pub fn solve_part2(input_str: &str) -> String {
     let mut count = 0;
     let mut num_blocks = 0;
     let mut cache: HashMap<(usize, usize, u64), (usize, usize, usize)> = Default::default();
-    let hashsize = 10000;
+    let hashsize = 1000;
     let mut height: usize = 0;
 
     while num_blocks < NUM_ROCKS {
