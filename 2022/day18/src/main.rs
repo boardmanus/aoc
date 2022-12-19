@@ -9,6 +9,15 @@ struct Cube(i64, i64, i64);
 type Offset = (i64, i64, i64);
 
 impl Cube {
+    const ADJACENCY: [Offset; 6] = [
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+        (0, 0, 1),
+        (0, 0, -1),
+    ];
+
     fn in_bounds(&self, bounds: &(Cube, Cube)) -> bool {
         let (min, max) = bounds;
         self.0 >= min.0
@@ -17,6 +26,18 @@ impl Cube {
             && self.1 <= max.1
             && self.2 >= min.2
             && self.2 <= max.2
+    }
+
+    fn adjacent(&self) -> impl Iterator<Item = Cube> + '_ {
+        Cube::ADJACENCY.iter().map(move |adj| self + adj)
+    }
+
+    fn min(&self, c: &Cube) -> Cube {
+        Cube(self.0.min(c.0), self.1.min(c.1), self.2.min(c.2))
+    }
+
+    fn max(&self, c: &Cube) -> Cube {
+        Cube(self.0.max(c.0), self.1.max(c.1), self.2.max(c.2))
     }
 }
 
@@ -28,15 +49,6 @@ impl_op_ex!(+ |a: &Cube, b: &Offset| -> Cube {
 struct Droplet {
     cubes: HashSet<Cube>,
 }
-
-static ADJACENCY: [Offset; 6] = [
-    (1, 0, 0),
-    (-1, 0, 0),
-    (0, 1, 0),
-    (0, -1, 0),
-    (0, 0, 1),
-    (0, 0, -1),
-];
 
 impl Droplet {
     fn parse(input: &str) -> Droplet {
@@ -59,28 +71,25 @@ impl Droplet {
         Droplet { cubes }
     }
 
+    fn map_cubes<'a, F, T>(&'a self, f: F) -> impl Iterator<Item = T> + 'a
+    where
+        F: Fn(&Cube) -> T + 'a,
+    {
+        self.cubes.iter().map(f)
+    }
+
     fn disconnected_faces(&self) -> usize {
-        self.cubes
-            .iter()
-            .map(|cube| {
-                ADJACENCY
-                    .iter()
-                    .filter(|adj| !self.cubes.contains(&(cube + *adj)))
-                    .count()
-            })
-            .sum()
+        self.map_cubes(|cube| {
+            cube.adjacent()
+                .filter(|adj| !self.cubes.contains(adj))
+                .count()
+        })
+        .sum()
     }
 
     fn external_faces(&self) -> usize {
-        let external_cubes = self.floodfill();
-        self.cubes
-            .iter()
-            .map(|cube| {
-                ADJACENCY
-                    .iter()
-                    .filter(|adj| external_cubes.contains(&(cube + *adj)))
-                    .count()
-            })
+        let air = self.floodfill();
+        self.map_cubes(|cube| cube.adjacent().filter(|adj| air.contains(adj)).count())
             .sum()
     }
 
@@ -88,18 +97,10 @@ impl Droplet {
         let mut min = Cube(i64::MAX, i64::MAX, i64::MAX);
         let mut max = Cube(0, 0, 0);
         self.cubes.iter().for_each(|cube| {
-            min = Cube(
-                min.0.min(cube.0) - 1,
-                min.1.min(cube.1) - 1,
-                min.2.min(cube.2) - 1,
-            );
-            max = Cube(
-                max.0.max(cube.0) + 1,
-                max.1.max(cube.1) + 1,
-                max.2.max(cube.2) + 1,
-            );
+            min = min.min(cube);
+            max = max.max(cube);
         });
-        (min, max)
+        (min + (-1, -1, -1), max + (1, 1, 1))
     }
 
     fn floodfill(&self) -> HashSet<Cube> {
@@ -107,10 +108,9 @@ impl Droplet {
         let mut q: Vec<Cube> = vec![bounds.0.clone()];
         let mut visited: HashSet<Cube> = Default::default();
 
+        // Depth first search of air-space
         while let Some(n) = q.pop() {
-            ADJACENCY
-                .iter()
-                .map(|adj| &n + adj)
+            n.adjacent()
                 .filter(|cube| {
                     !self.cubes.contains(cube) && !visited.contains(cube) && cube.in_bounds(&bounds)
                 })
