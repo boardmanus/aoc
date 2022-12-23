@@ -8,30 +8,81 @@ use nom::{
     IResult,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Op<'a> {
     Yell(i64),
     Plus(&'a str, &'a str),
     Minus(&'a str, &'a str),
     Mult(&'a str, &'a str),
     Div(&'a str, &'a str),
+    Eq(&'a str, &'a str),
+    Solve,
 }
 
-fn monkey_name(input: &str) -> IResult<&str, &str> {
+impl<'a> Op<'a> {
+    fn apply(&self, a: i64, b: i64) -> Option<i64> {
+        match self {
+            Op::Yell(x) => Some(*x),
+            Op::Plus(_, _) => Some(a + b),
+            Op::Minus(_, _) => Some(a - b),
+            Op::Mult(_, _) => Some(a * b),
+            Op::Div(_, _) => Some(a / b),
+            Op::Eq(_, _) => Some((a == b) as i64),
+            Op::Solve => None,
+        }
+    }
+
+    fn solve(&self, lhs: i64, rhs_a: Option<i64>, rhs_b: Option<i64>) -> Option<i64> {
+        if let Some(a) = rhs_a {
+            match self {
+                Op::Plus(_, _) => Some(lhs - a),
+                Op::Minus(_, _) => Some(a - lhs),
+                Op::Mult(_, _) => Some(lhs / a),
+                Op::Div(_, _) => Some(a / lhs),
+                Op::Eq(_, _) => rhs_a,
+                Op::Yell(_) => Some(lhs),
+                Op::Solve => None,
+            }
+        } else if let Some(b) = rhs_b {
+            match self {
+                Op::Plus(_, _) => Some(lhs - b),
+                Op::Minus(_, _) => Some(lhs + b),
+                Op::Mult(_, _) => Some(lhs / b),
+                Op::Div(_, _) => Some(lhs * b),
+                Op::Eq(_, _) => rhs_b,
+                Op::Yell(_) => Some(lhs),
+                Op::Solve => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn ab(&self) -> Option<(&'a str, &'a str)> {
+        match self {
+            Op::Yell(_) | Op::Solve => None,
+            Op::Plus(a, b) | Op::Minus(a, b) | Op::Div(a, b) | Op::Mult(a, b) | Op::Eq(a, b) => {
+                Some((a, b))
+            }
+        }
+    }
+}
+
+fn parse_monkey_name(input: &str) -> IResult<&str, &str> {
     alpha0(input)
 }
 
-fn monkey_yell(input: &str) -> IResult<&str, Op> {
+fn parse_monkey_yell(input: &str) -> IResult<&str, Op> {
     let res = digit0(input)?;
     let num = res.1.parse().unwrap();
     Ok((res.0, Op::Yell(num)))
 }
 
-fn monkey_op(input: &str) -> IResult<&str, Op> {
+fn parse_monkey_op(input: &str) -> IResult<&str, Op> {
     let res = tuple((
-        monkey_name,
+        parse_monkey_name,
         alt((tag(" + "), tag(" - "), tag(" * "), tag(" / "))),
-        monkey_name,
+        parse_monkey_name,
     ))(input)?;
     let op = match res.1 .1 {
         " + " => Op::Plus(res.1 .0, res.1 .2),
@@ -43,96 +94,40 @@ fn monkey_op(input: &str) -> IResult<&str, Op> {
     Ok((res.0, op))
 }
 
-fn value<'a>(
-    monkey: &'a str,
-    all_ops: &'a HashMap<&'a str, Op>,
-    cache: &mut HashMap<&'a str, i64>,
-) -> i64 {
-    if let Some(n) = cache.get(monkey) {
-        *n
-    } else {
-        match all_ops[monkey] {
-            Op::Yell(n) => {
-                cache.insert(monkey, n);
-                n
-            }
-            Op::Plus(m1, m2) => value(m1, all_ops, cache) + value(m2, all_ops, cache),
-            Op::Minus(m1, m2) => value(m1, all_ops, cache) - value(m2, all_ops, cache),
-            Op::Mult(m1, m2) => value(m1, all_ops, cache) * value(m2, all_ops, cache),
-            Op::Div(m1, m2) => value(m1, all_ops, cache) / value(m2, all_ops, cache),
-        }
-    }
-}
-
-fn parse<'a>(input: &'a str) -> HashMap<&'a str, Op> {
+fn parse(input: &str) -> HashMap<&str, Op> {
     let mut monkeys: HashMap<&str, Op> = Default::default();
     input
         .split('\n')
-        .flat_map(|i| separated_pair(monkey_name, tag(": "), alt((monkey_op, monkey_yell)))(i))
+        .flat_map(|i| {
+            separated_pair(
+                parse_monkey_name,
+                tag(": "),
+                alt((parse_monkey_op, parse_monkey_yell)),
+            )(i)
+        })
         .for_each(|r| {
             monkeys.insert(r.1 .0, r.1 .1);
         });
     monkeys
 }
 
-fn solve_part1(input: &str) -> String {
-    let all_ops = parse(input);
-    let mut all_res: HashMap<&str, i64> = Default::default();
-    value("root", &all_ops, &mut all_res).to_string()
-}
-
-fn maybe_value<'a>(
+fn value<'a>(
     monkey: &'a str,
     all_ops: &'a HashMap<&'a str, Op>,
     cache: &mut HashMap<&'a str, i64>,
 ) -> Option<i64> {
-    if monkey == "humn" {
-        None
+    let op = all_ops[monkey];
+    let v = if let Some(n) = cache.get(monkey) {
+        *n
+    } else if let Op::Yell(n) = op {
+        n
+    } else if let Some((a, b)) = op.ab() {
+        op.apply(value(a, all_ops, cache)?, value(b, all_ops, cache)?)?
     } else {
-        if let Some(n) = cache.get(monkey) {
-            Some(*n)
-        } else {
-            let n = match all_ops[monkey] {
-                Op::Yell(n) => {
-                    cache.insert(monkey, n);
-                    n
-                }
-                Op::Plus(m1, m2) => {
-                    maybe_value(m1, all_ops, cache)? + maybe_value(m2, all_ops, cache)?
-                }
-                Op::Minus(m1, m2) => {
-                    maybe_value(m1, all_ops, cache)? - maybe_value(m2, all_ops, cache)?
-                }
-                Op::Mult(m1, m2) => {
-                    maybe_value(m1, all_ops, cache)? * maybe_value(m2, all_ops, cache)?
-                }
-                Op::Div(m1, m2) => {
-                    maybe_value(m1, all_ops, cache)? / maybe_value(m2, all_ops, cache)?
-                }
-            };
-            Some(n)
-        }
-    }
-}
-
-fn apply_lhs_op(op: Op, a: i64, b: i64) -> i64 {
-    match op {
-        Op::Yell(_) => a,
-        Op::Plus(_, _) => a - b,
-        Op::Minus(_, _) => b - a,
-        Op::Mult(_, _) => a / b,
-        Op::Div(_, _) => b / a,
-    }
-}
-
-fn apply_rhs_op(op: Op, a: i64, b: i64) -> i64 {
-    match op {
-        Op::Yell(_) => a,
-        Op::Plus(_, _) => a - b,
-        Op::Minus(_, _) => a + b,
-        Op::Mult(_, _) => a / b,
-        Op::Div(_, _) => a * b,
-    }
+        return None;
+    };
+    cache.insert(monkey, v);
+    Some(v)
 }
 
 fn solve_x<'a>(
@@ -140,43 +135,41 @@ fn solve_x<'a>(
     monkey: &'a str,
     all_ops: &'a HashMap<&'a str, Op>,
     cache: &mut HashMap<&'a str, i64>,
-) -> i64 {
-    if monkey == "humn" {
-        return res;
-    }
+) -> Option<i64> {
     let op = all_ops[monkey];
-    match op {
-        Op::Yell(x) => x,
-        Op::Plus(a, b) | Op::Minus(a, b) | Op::Div(a, b) | Op::Mult(a, b) => {
-            let lhs = maybe_value(a, all_ops, cache);
-            let rhs = maybe_value(b, all_ops, cache);
-            if let Some(l) = lhs {
-                solve_x(apply_lhs_op(op, res, l), b, all_ops, cache)
-            } else if let Some(r) = rhs {
-                solve_x(apply_rhs_op(op, res, r), a, all_ops, cache)
-            } else {
-                panic!()
-            }
-        }
+    if op == Op::Solve {
+        Some(res)
+    } else if let Some((a, b)) = op.ab() {
+        let lhs = value(a, all_ops, cache);
+        let rhs = value(b, all_ops, cache);
+        let unsolved_monkey = if lhs.is_some() { b } else { a };
+        solve_x(op.solve(res, lhs, rhs)?, unsolved_monkey, all_ops, cache)
+    } else {
+        None
     }
 }
 
-fn solve_part2(input: &str) -> String {
+fn as_eq(op: Op) -> Op {
+    match op {
+        Op::Plus(a, b) | Op::Minus(a, b) | Op::Div(a, b) | Op::Mult(a, b) => Op::Eq(a, b),
+        _ => panic!(),
+    }
+}
+
+fn solve_part1(input: &str) -> String {
     let all_ops = parse(input);
+    let mut all_res: HashMap<&str, i64> = Default::default();
+    value("root", &all_ops, &mut all_res).unwrap().to_string()
+}
+
+fn solve_part2(input: &str) -> String {
+    let root = "root";
+    let humn = "humn";
+    let mut all_ops = parse(input);
     let mut cache: HashMap<&str, i64> = Default::default();
-    let val = match all_ops["root"] {
-        Op::Yell(x) => x,
-        Op::Plus(a, b) | Op::Minus(a, b) | Op::Div(a, b) | Op::Mult(a, b) => {
-            if let Some(v) = maybe_value(a, &all_ops, &mut cache) {
-                solve_x(v, b, &all_ops, &mut cache)
-            } else if let Some(v) = maybe_value(b, &all_ops, &mut cache) {
-                solve_x(v, a, &all_ops, &mut cache)
-            } else {
-                panic!()
-            }
-        }
-    };
-    val.to_string()
+    *all_ops.get_mut(humn).unwrap() = Op::Solve;
+    *all_ops.get_mut(root).unwrap() = as_eq(all_ops[root]);
+    solve_x(0, root, &all_ops, &mut cache).unwrap().to_string()
 }
 
 fn main() {
