@@ -18,25 +18,18 @@ mod tests {
 
     use super::*;
 
-    const INPUT: &str = "...#
-    .#..
-    #...
-    ....
-    ...#.......#
-    ........#...
-    ..#....#....
-    ..........#.
-    ...#....
-    .....#..
-    .#......
-    ......#.
-    
-    10R5L5R10L4R5L5
-    ";
+    const INPUT: &str = "....#..
+..###.#
+#...#.#
+.#...##
+#.###..
+##.#.##
+.#..#..
+";
 
     #[test]
     fn test_part1() {
-        assert_eq!(solve_part1(INPUT), 6032.to_string());
+        assert_eq!(solve_part1(INPUT), 110.to_string());
     }
 
     #[test]
