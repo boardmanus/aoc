@@ -2,7 +2,7 @@
 
 use enum_iterator::Sequence;
 use regex;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
@@ -295,24 +295,27 @@ impl BluePrint {
         self.max_geodes(time) * self.id
     }
     fn max_geodes(&self, time: usize) -> usize {
-        let mut initial_state = HashSet::<State>::default();
+        let mut initial_state: HashSet<State> = Default::default();
         initial_state.insert(State::default());
         let mut all_states = vec![initial_state];
+        let mut num_dups = 0;
         for t in 0..time {
             println!("-------  t={t}  --------");
-            let states = &all_states[t];
-            let mut new_states = HashSet::<State>::default();
+            let states = all_states.pop().unwrap();
+            let mut new_states: HashSet<State> = Default::default();
             states.iter().for_each(|state| {
-                //println!("{state} =>");
-                for s in state.update(self) {
-                    //println!("  ... {s}");
-                    new_states.insert(s);
+                for s in &state.update(self) {
+                    if !new_states.insert(*s) {
+                        num_dups += 1
+                    }
                 }
             });
-            println!("{} new states added...", new_states.len());
+            println!("{} new states added... {num_dups} dups", new_states.len());
             all_states.push(new_states);
         }
-        all_states[time]
+        all_states
+            .pop()
+            .unwrap()
             .iter()
             .map(|s| s.resources.quantity[Resource::Geode as usize])
             .max()
