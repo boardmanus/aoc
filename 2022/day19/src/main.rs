@@ -1,8 +1,7 @@
 #![feature(hash_set_entry)]
 
 use enum_iterator::Sequence;
-use regex;
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
@@ -14,12 +13,6 @@ enum Resource {
     Clay,
     Obsidian,
     Geode,
-}
-
-impl Into<usize> for Resource {
-    fn into(self) -> usize {
-        self as usize
-    }
 }
 
 impl From<usize> for Resource {
@@ -43,11 +36,10 @@ type Recipe = Resources;
 type Robots = Resources;
 
 impl Resources {
-    fn new(ore: usize, clay: usize, obsidian: usize, geode: usize) -> Resources {
-        Resources {
-            quantity: [ore, clay, obsidian, geode],
-        }
+    fn new(quantity: [usize; 4]) -> Resources {
+        Resources { quantity }
     }
+
     fn single(resource: Resource) -> Resources {
         let mut resources = Resources::default();
         resources.quantity[resource as usize] = 1;
@@ -55,28 +47,28 @@ impl Resources {
     }
 
     fn contains(&self, resources: &Resources) -> bool {
-        self.quantity[0] >= resources.quantity[0]
-            && self.quantity[1] >= resources.quantity[1]
-            && self.quantity[2] >= resources.quantity[2]
-            && self.quantity[3] >= resources.quantity[3]
+        self.quantity
+            .iter()
+            .zip(resources.quantity)
+            .all(|r| *r.0 >= r.1)
     }
 }
 
 impl Default for Resources {
     fn default() -> Self {
-        Resources::new(0, 0, 0, 0)
+        Resources::new([0, 0, 0, 0])
     }
 }
 
 impl Add for Resources {
     type Output = Resources;
     fn add(self, rhs: Self) -> Self::Output {
-        Resources::new(
+        Resources::new([
             self.quantity[0] + rhs.quantity[0],
             self.quantity[1] + rhs.quantity[1],
             self.quantity[2] + rhs.quantity[2],
             self.quantity[3] + rhs.quantity[3],
-        )
+        ])
     }
 }
 
@@ -89,12 +81,12 @@ impl AddAssign for Resources {
 impl Sub for Resources {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(
+        Self::new([
             self.quantity[0].saturating_sub(rhs.quantity[0]),
             self.quantity[1].saturating_sub(rhs.quantity[1]),
             self.quantity[2].saturating_sub(rhs.quantity[2]),
             self.quantity[3].saturating_sub(rhs.quantity[3]),
-        )
+        ])
     }
 }
 
@@ -146,12 +138,12 @@ impl BluePrint {
         geode: Resources,
     ) -> BluePrint {
         let robot_recipes = [ore, clay, obsidian, geode];
-        let max_robots = Resources::new(
+        let max_robots = Resources::new([
             robot_recipes.iter().map(|rr| rr.quantity[0]).max().unwrap(),
             robot_recipes.iter().map(|rr| rr.quantity[1]).max().unwrap(),
             robot_recipes.iter().map(|rr| rr.quantity[2]).max().unwrap(),
             usize::MAX,
-        );
+        ]);
         BluePrint {
             id,
             robot_recipes,
@@ -166,10 +158,10 @@ impl BluePrint {
         let c = re.captures(input).unwrap();
         Ok(BluePrint::new(
             c[1].parse()?,
-            Resources::new(c[2].parse()?, 0, 0, 0),
-            Resources::new(c[3].parse()?, 0, 0, 0),
-            Resources::new(c[4].parse()?, c[5].parse()?, 0, 0),
-            Resources::new(c[6].parse()?, 0, c[7].parse()?, 0),
+            Resources::new([c[2].parse()?, 0, 0, 0]),
+            Resources::new([c[3].parse()?, 0, 0, 0]),
+            Resources::new([c[4].parse()?, c[5].parse()?, 0, 0]),
+            Resources::new([c[6].parse()?, 0, c[7].parse()?, 0]),
         ))
     }
 
@@ -216,8 +208,8 @@ impl BluePrints {
     fn parse(input: &str) -> Result<BluePrints, BluePrintError> {
         let mut res: (Vec<_>, Vec<_>) = input
             .split('\n')
-            .filter(|s| *s != "")
-            .map(|s| BluePrint::parse(s))
+            .filter(|s| !s.is_empty())
+            .map(BluePrint::parse)
             .partition(Result::is_ok);
         if let Some(err) = res.1.pop() {
             Err(err.err().unwrap())
@@ -240,8 +232,8 @@ impl Default for State {
     fn default() -> Self {
         State {
             factory_target: None,
-            robots: Resources::new(1, 0, 0, 0),
-            resources: Resources::new(0, 0, 0, 0),
+            robots: Resources::new([1, 0, 0, 0]),
+            resources: Resources::new([0, 0, 0, 0]),
         }
     }
 }
@@ -295,27 +287,23 @@ impl BluePrint {
         self.max_geodes(time) * self.id
     }
     fn max_geodes(&self, time: usize) -> usize {
-        let mut initial_state: HashSet<State> = Default::default();
-        initial_state.insert(State::default());
-        let mut all_states = vec![initial_state];
-        let mut num_dups = 0;
-        for t in 0..time {
-            println!("-------  t={t}  --------");
-            let states = all_states.pop().unwrap();
-            let mut new_states: HashSet<State> = Default::default();
-            states.iter().for_each(|state| {
-                for s in &state.update(self) {
-                    if !new_states.insert(*s) {
-                        num_dups += 1
-                    }
-                }
-            });
-            println!("{} new states added... {num_dups} dups", new_states.len());
-            all_states.push(new_states);
-        }
-        all_states
-            .pop()
-            .unwrap()
+        (0..time)
+            .fold(
+                HashSet::<State>::from_iter(vec![State::default()]),
+                |states, _| {
+                    states
+                        .iter()
+                        .fold(HashSet::<State>::default(), |new_states, state| {
+                            state
+                                .update(self)
+                                .iter()
+                                .fold(new_states, |mut new_states, s| {
+                                    new_states.insert(*s);
+                                    new_states
+                                })
+                        })
+                },
+            )
             .iter()
             .map(|s| s.resources.quantity[Resource::Geode as usize])
             .max()
@@ -380,7 +368,7 @@ Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsid
     fn test_buildable_robots() {
         let bp = BluePrints::parse(INPUT).unwrap();
         let ql = bp.design[0]
-            .buildable_robots(&Resources::new(1, 1, 0, 0))
+            .buildable_robots(&Resources::new([1, 1, 0, 0]))
             .collect::<Vec<_>>();
         assert_eq!(ql, vec![Resource::Ore, Resource::Clay, Resource::Obsidian]);
     }
@@ -394,30 +382,31 @@ Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsid
 
     #[test]
     fn test_resources_contains() {
-        assert!(Resources::new(10, 10, 0, 0).contains(&Resources::new(4, 0, 0, 0)));
+        assert!(Resources::new([10, 10, 0, 0]).contains(&Resources::new([4, 0, 0, 0])));
     }
 
     #[test]
     fn test_resource_math() {
         assert_eq!(
-            Resources::new(1, 0, 0, 0) + Resources::new(0, 1, 0, 0),
-            Resources::new(1, 1, 0, 0)
+            Resources::new([1, 0, 0, 0]) + Resources::new([0, 1, 0, 0]),
+            Resources::new([1, 1, 0, 0])
         );
         assert_eq!(
-            Resources::new(4, 2, 0, 0) - Resources::new(0, 1, 0, 0),
-            Resources::new(4, 1, 0, 0)
+            Resources::new([4, 2, 0, 0]) - Resources::new([0, 1, 0, 0]),
+            Resources::new([4, 1, 0, 0])
         );
         assert_eq!(
-            Resources::new(2, 2, 2, 2) - Resources::new(1, 1, 1, 1),
-            Resources::new(1, 1, 1, 1)
+            Resources::new([2, 2, 2, 2]) - Resources::new([1, 1, 1, 1]),
+            Resources::new([1, 1, 1, 1])
         );
         assert_eq!(
-            Resources::new(2, 2, 2, 2) - Resources::new(1, 1, 2, 1),
-            Resources::new(1, 1, 0, 1)
+            Resources::new([2, 2, 2, 2]) - Resources::new([1, 1, 2, 1]),
+            Resources::new([1, 1, 0, 1])
         );
         assert_eq!(
-            Resources::new(2, 2, 2, 2) - Resources::new(1, 1, 1, 1) + Resources::new(1, 2, 3, 4),
-            Resources::new(2, 3, 4, 5)
+            Resources::new([2, 2, 2, 2]) - Resources::new([1, 1, 1, 1])
+                + Resources::new([1, 2, 3, 4]),
+            Resources::new([2, 3, 4, 5])
         );
     }
 }
