@@ -78,13 +78,84 @@ impl Cmd {
     }
 }
 
+type Path = HashMap<(i64, i64), Dir>;
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+struct Face(i64, i64, Dir);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Teleporter(Face, Face);
+
+impl Teleporter {
+    fn transform(&self, pos: &Pos, len: usize) -> Pos {
+        let l = len as i64;
+        let op = Face(pos.x % l, pos.y % l, pos.dir);
+        let tl = Face(self.1 .0 * l, self.1 .1 * l, self.1 .2.opposite());
+        let br = Face(tl.0 + l - 1, tl.1 + l - 1, tl.2);
+        match (self.0 .2, self.1 .2) {
+            (Dir::Right, Dir::Left) => Pos::new(tl.0, tl.1 + op.1, tl.2),
+            (Dir::Right, Dir::Right) => Pos::new(br.0, br.1 - op.1, tl.2),
+            (Dir::Right, Dir::Up) => Pos::new(br.0 - op.1, tl.1, tl.2),
+            (Dir::Right, Dir::Down) => Pos::new(tl.0 + op.1, br.1, tl.2),
+
+            (Dir::Down, Dir::Left) => Pos::new(tl.0, br.1 - op.0, tl.2),
+            (Dir::Down, Dir::Right) => Pos::new(br.0, tl.1 + op.0, tl.2),
+            (Dir::Down, Dir::Up) => Pos::new(tl.0 + op.0, tl.1, tl.2),
+            (Dir::Down, Dir::Down) => Pos::new(br.0 - op.0, br.1, tl.2),
+
+            (Dir::Left, Dir::Left) => Pos::new(tl.0, br.1 - op.1, tl.2),
+            (Dir::Left, Dir::Right) => Pos::new(br.0, tl.1 + op.1, tl.2),
+            (Dir::Left, Dir::Up) => Pos::new(tl.0 + op.1, tl.1, tl.2),
+            (Dir::Left, Dir::Down) => Pos::new(br.0 - op.1, br.1, tl.2),
+
+            (Dir::Up, Dir::Left) => Pos::new(tl.0, tl.1 + op.0, tl.2),
+            (Dir::Up, Dir::Right) => Pos::new(br.0, br.1 - op.0, tl.2),
+            (Dir::Up, Dir::Up) => Pos::new(br.0 - op.0, tl.1, tl.2),
+            (Dir::Up, Dir::Down) => Pos::new(tl.0 + op.0, br.1, tl.2),
+        }
+    }
+}
+
 struct Map {
     cubic: bool,
     sqr_size: usize,
     rows: Vec<Row>,
+    teleporters: HashMap<Face, Teleporter>,
 }
 
-type Path = HashMap<(i64, i64), Dir>;
+const TELEPORTERS_4: [Teleporter; 14] = [
+    Teleporter(Face(2, 0, Dir::Left), Face(1, 1, Dir::Up)), //], +1 //2
+    Teleporter(Face(2, 0, Dir::Up), Face(0, 1, Dir::Up)),   //], -1),  //4
+    Teleporter(Face(2, 0, Dir::Right), Face(3, 2, Dir::Right)), //], -1),
+    Teleporter(Face(2, 1, Dir::Right), Face(3, 2, Dir::Up)), //], -1), //2
+    Teleporter(Face(3, 2, Dir::Up), Face(2, 1, Dir::Right)), //], -1), //2
+    Teleporter(Face(3, 2, Dir::Right), Face(2, 0, Dir::Right)), //], -1), //4
+    Teleporter(Face(3, 2, Dir::Down), Face(0, 1, Dir::Left)), //], -1), //6
+    Teleporter(Face(2, 2, Dir::Down), Face(0, 1, Dir::Down)), //], -1), //4
+    Teleporter(Face(2, 2, Dir::Left), Face(1, 1, Dir::Down)), //], -1), //2
+    Teleporter(Face(1, 1, Dir::Down), Face(2, 2, Dir::Up)), //], -1),  //2
+    Teleporter(Face(0, 1, Dir::Down), Face(2, 2, Dir::Down)), //], -1), //4
+    Teleporter(Face(0, 1, Dir::Left), Face(2, 2, Dir::Down)), //], -1), //6
+    Teleporter(Face(0, 1, Dir::Up), Face(2, 0, Dir::Up)),   //], -1),    //4
+    Teleporter(Face(1, 1, Dir::Up), Face(2, 0, Dir::Left)), //], 1),   //2
+];
+
+const TELEPORTERS_50: [Teleporter; 14] = [
+    Teleporter(Face(1, 0, Dir::Left), Face(0, 2, Dir::Left)),
+    Teleporter(Face(1, 0, Dir::Up), Face(0, 3, Dir::Left)),
+    Teleporter(Face(2, 0, Dir::Up), Face(0, 3, Dir::Down)), //], -1),
+    Teleporter(Face(2, 0, Dir::Right), Face(1, 2, Dir::Right)), //], -1), //2
+    Teleporter(Face(2, 0, Dir::Down), Face(1, 1, Dir::Right)), //], -1), //2
+    Teleporter(Face(1, 1, Dir::Right), Face(2, 0, Dir::Down)), //], -1), //4
+    Teleporter(Face(1, 2, Dir::Right), Face(2, 0, Dir::Right)), //], -1), //6
+    Teleporter(Face(1, 2, Dir::Down), Face(0, 3, Dir::Right)), //], -1), //4
+    Teleporter(Face(0, 3, Dir::Right), Face(1, 2, Dir::Down)), //], -1), //2
+    Teleporter(Face(0, 3, Dir::Down), Face(2, 0, Dir::Up)), //], -1),  //2
+    Teleporter(Face(0, 3, Dir::Left), Face(1, 0, Dir::Up)), //], -1), //4
+    Teleporter(Face(0, 2, Dir::Left), Face(1, 0, Dir::Left)), //], -1), //6
+    Teleporter(Face(0, 2, Dir::Up), Face(1, 1, Dir::Left)), //], -1),    //4
+    Teleporter(Face(1, 1, Dir::Left), Face(0, 2, Dir::Up)), //], 1),   //2
+];
 
 impl Display for Map {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -133,8 +204,11 @@ impl Map {
 
     fn next(&self, pos: &Pos) -> Option<Pos> {
         let dir = pos.dir.dir();
-        let x = (pos.x + dir.0).rem_euclid(self.rows[0].0.len() as i64);
-        let y = (pos.y + dir.1).rem_euclid(self.rows.len() as i64);
+        let x = pos.x + dir.0;
+        let y = pos.y + dir.1;
+        if x < 0 || x >= (self.rows[0].0.len() as i64) || y < 0 || y >= (self.rows.len() as i64) {
+            return self.teleport(pos);
+        }
         if let Some(g) = self.rows[y as usize].0[x as usize] {
             if g {
                 Some(Pos { x, y, dir: pos.dir })
@@ -160,8 +234,15 @@ impl Map {
     }
 
     fn teleport_cubic(&self, pos: &Pos) -> Option<Pos> {
-        None
+        let teleporter = self.teleporters[&pos.into(self.sqr_size)];
+        let new_pos = teleporter.transform(pos, self.sqr_size);
+        println!(
+            "teleport from {:?}|{:?} <-> {:?}|{:?}",
+            pos, teleporter.0, teleporter.1, new_pos
+        );
+        self.cell_pos(pos, &new_pos)
     }
+
     fn teleport_flat(&self, pos: &Pos) -> Option<Pos> {
         match pos.dir {
             Dir::Right => (0..(self.rows[0].0.len() / self.sqr_size)).find_map(|i| {
@@ -205,10 +286,21 @@ impl Map {
         } else {
             4
         };
+        let mut teleporters = HashMap::<Face, Teleporter>::default();
+        if sqr_size == 4 {
+            TELEPORTERS_4
+        } else {
+            TELEPORTERS_50
+        }
+        .iter()
+        .for_each(|t| {
+            teleporters.insert(t.0, *t);
+        });
         Map {
             cubic,
             sqr_size,
             rows,
+            teleporters,
         }
     }
 
@@ -256,7 +348,7 @@ impl Map {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 enum Dir {
     Right,
     Down,
@@ -283,6 +375,10 @@ impl Dir {
             Dir::Left => (-1, 0),
             Dir::Up => (0, -1),
         }
+    }
+
+    fn opposite(&self) -> Dir {
+        (*self as i64 + 2).rem_euclid(4).into()
     }
 
     fn rotate(&self, dir: Rotate) -> Dir {
@@ -314,6 +410,10 @@ impl Pos {
         Pos { x, y, dir }
     }
 
+    fn into(&self, len: usize) -> Face {
+        Face(self.x / len as i64, self.y / len as i64, self.dir)
+    }
+
     fn password(&self) -> usize {
         (self.y as usize + 1) * 1000 + (self.x as usize + 1) * 4 + self.dir as usize
     }
@@ -338,8 +438,10 @@ fn solve_part1(input: &str) -> String {
 
 fn solve_part2(input: &str) -> String {
     let (map, cmds) = parse(input, true);
-    let (pos, path) = map.walk(&cmds);
-    pos.password().to_string()
+    let (final_pos, path) = map.walk(&cmds);
+    map.print_path(&path);
+    println!("Final Pos: {:?}", final_pos);
+    final_pos.password().to_string()
 }
 
 fn main() {
