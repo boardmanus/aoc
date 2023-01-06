@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate lazy_static;
 use std::{collections::HashSet, fmt::Display, ops::Add};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -18,6 +20,16 @@ enum Dir {
     Up,
 }
 
+lazy_static! {
+    static ref COORDS: [Pos; 5] = [
+        Pos(0, 0),
+        Dir::Right.coord(),
+        Dir::Down.coord(),
+        Dir::Left.coord(),
+        Dir::Up.coord(),
+    ];
+}
+
 impl Dir {
     fn parse(input: char) -> Option<Dir> {
         match input {
@@ -31,6 +43,15 @@ impl Dir {
         }
     }
 
+    fn char(&self) -> char {
+        match self {
+            Dir::Right => '>',
+            Dir::Down => 'v',
+            Dir::Left => '<',
+            Dir::Up => '^',
+        }
+    }
+
     fn coord(&self) -> Pos {
         match self {
             Dir::Right => Pos(1, 0),
@@ -38,16 +59,6 @@ impl Dir {
             Dir::Left => Pos(-1, 0),
             Dir::Up => Pos(0, -1),
         }
-    }
-
-    fn coords() -> [Pos; 5] {
-        [
-            Pos(0, 0),
-            Dir::Right.coord(),
-            Dir::Down.coord(),
-            Dir::Left.coord(),
-            Dir::Up.coord(),
-        ]
     }
 }
 
@@ -75,10 +86,10 @@ impl Display for Map {
         for row in self.rows.iter().enumerate() {
             write!(f, "#")?;
             for col in self.cols.iter().enumerate() {
-                let c = if self.cell_empty(Pos(col.0 as i64, row.0 as i64)) {
-                    '.'
-                } else {
-                    'x'
+                let c = match self.count_bliz(&Pos(col.0 as i64, row.0 as i64)) {
+                    None => '.',
+                    Some(BlizCell::Single(dir)) => dir.char(),
+                    Some(BlizCell::Multi(num)) => ((num % 4) + '0' as u8) as char,
                 };
                 write!(f, "{c}")?;
             }
@@ -86,6 +97,13 @@ impl Display for Map {
         }
         writeln!(f, "{}.#", "#".repeat(self.cols.len()))
     }
+}
+type Todo = HashSet<Pos>;
+
+#[derive(PartialEq)]
+enum BlizCell {
+    Single(Dir),
+    Multi(u8),
 }
 
 impl Map {
@@ -179,54 +197,71 @@ impl Map {
         Map { rows, cols }
     }
 
-    fn cell_empty(&self, pos: Pos) -> bool {
-        if pos.0 == 0 && pos.1 == -1
-            || pos.0 == self.cols.len() as i64 - 1 && pos.1 == self.rows.len() as i64
-        {
-            true
-        } else if pos.0 < 0
+    fn in_bounds(&self, pos: &Pos) -> bool {
+        if pos.0 < 0
             || pos.1 < 0
             || pos.0 >= self.cols.len() as i64
             || pos.1 >= self.rows.len() as i64
         {
             false
         } else {
-            let h = &self.rows[pos.1 as usize];
-            let v = &self.cols[pos.0 as usize];
-            (h.0 & (1 << pos.0) == 0)
-                && (h.1 & (1 << pos.0)) == 0
-                && (v.0 & (1 << pos.1) == 0)
-                && (v.1 & (1 << pos.1) == 0)
+            true
         }
     }
-}
-
-struct Search {
-    map: Map,
-    mv: [Pos; 5],
-}
-impl Search {
-    fn new(map: Map) -> Self {
-        let mv = Dir::coords();
-        Search { map, mv }
+    fn cell_empty(&self, pos: &Pos) -> bool {
+        if *pos == self.start() || *pos == self.end() {
+            true
+        } else if !self.in_bounds(pos) {
+            false
+        } else {
+            self.count_bliz(pos) == None
+        }
     }
 
-    fn iterate(&mut self, todo: &HashSet<Pos>) -> HashSet<Pos> {
-        self.map = self.map.update();
-        //println!("{}", self.map);
-        todo.iter()
+    fn count_bliz(&self, pos: &Pos) -> Option<BlizCell> {
+        let mut count = 0;
+        let mut dir = Dir::Right;
+        let h = &self.rows[pos.1 as usize];
+        let v = &self.cols[pos.0 as usize];
+        if h.0 & (1 << pos.0) != 0 {
+            count += 1;
+            dir = Dir::Right;
+        }
+        if h.1 & (1 << pos.0) != 0 {
+            count += 1;
+            dir = Dir::Left;
+        }
+        if v.0 & (1 << pos.1) != 0 {
+            count += 1;
+            dir = Dir::Down;
+        }
+        if v.1 & (1 << pos.1) != 0 {
+            count += 1;
+            dir = Dir::Up;
+        }
+        match count {
+            0 => None,
+            1 => Some(BlizCell::Single(dir)),
+            _ => Some(BlizCell::Multi(count)),
+        }
+    }
+
+    fn iterate(&mut self, todo: &Todo) -> (Map, Todo) {
+        let new_map = self.update();
+        let new_todo = todo
+            .iter()
             .map(|p| {
-                self.mv
+                COORDS
                     .iter()
                     .map(|dp| *p + *dp)
-                    .filter(|p| self.map.cell_empty(*p))
+                    .filter(|p| new_map.cell_empty(p))
             })
             .flatten()
-            .fold(Default::default(), |mut nt, p| {
-                //println!("Fold: {p:?}");
-                nt.insert(p);
-                nt
-            })
+            .fold(Todo::default(), |mut new_todo, p| {
+                new_todo.insert(p);
+                new_todo
+            });
+        (new_map, new_todo)
     }
 
     fn find(&mut self, start: &Pos, end: &Pos) -> u32 {
@@ -234,26 +269,28 @@ impl Search {
         let mut count = 0u32;
         while !todo.contains(end) {
             count += 1;
-            todo = self.iterate(&todo);
-            //println!("{todo:?}");
+            (*self, todo) = self.iterate(&todo);
         }
         count
     }
 }
 
 fn solve_part1(input: &str) -> String {
-    let mut search = Search::new(Map::parse(input));
-    search
-        .find(&search.map.start(), &search.map.end())
-        .to_string()
+    let mut map = Map::parse(input);
+    println!("{map}");
+    map.find(&map.start(), &map.end()).to_string()
 }
 
 fn solve_part2(input: &str) -> String {
-    let mut search = Search::new(Map::parse(input));
+    let mut map = Map::parse(input);
     let mut total = 0u32;
-    total += search.find(&search.map.start(), &search.map.end());
-    total += search.find(&search.map.end(), &search.map.start());
-    total += search.find(&search.map.start(), &search.map.end());
+    println!("{map}");
+    total += map.find(&map.start(), &map.end());
+    println!("{map}");
+    total += map.find(&map.end(), &map.start());
+    println!("{map}");
+    total += map.find(&map.start(), &map.end());
+    println!("{map}");
     total.to_string()
 }
 
@@ -287,13 +324,12 @@ mod tests {
 
     #[test]
     fn test_iterate() {
-        let map = Map::parse(TEST_INPUT);
-        let mut search = Search::new(map);
-        let mut todo: HashSet<Pos> = [search.map.start()].into();
-        todo = search.iterate(&todo);
+        let mut map = Map::parse(TEST_INPUT);
+        let mut todo: HashSet<Pos> = [map.start()].into();
+        (map, todo) = map.iterate(&todo);
         assert_eq!(todo, [Pos(0, 0), Pos(0, -1)].into());
         let mut todo: HashSet<Pos> = [Pos(0, 0)].into();
-        todo = search.iterate(&todo);
+        (_, todo) = map.iterate(&todo);
         assert_eq!(todo, [Pos(0, 0), Pos(0, -1), Pos(0, 1)].into());
     }
     #[test]
@@ -301,17 +337,17 @@ mod tests {
         let map = Map::parse(TEST_INPUT);
 
         // Entry points
-        assert!(map.cell_empty(Pos(0, -1)));
-        assert!(map.cell_empty(Pos(5, 4)));
+        assert!(map.cell_empty(&Pos(0, -1)));
+        assert!(map.cell_empty(&Pos(5, 4)));
 
         // Out of bounds
-        assert!(!map.cell_empty(Pos(6, 2)));
-        assert!(!map.cell_empty(Pos(-1, 2)));
-        assert!(!map.cell_empty(Pos(2, 4)));
-        assert!(!map.cell_empty(Pos(2, -1)));
+        assert!(!map.cell_empty(&Pos(6, 2)));
+        assert!(!map.cell_empty(&Pos(-1, 2)));
+        assert!(!map.cell_empty(&Pos(2, 4)));
+        assert!(!map.cell_empty(&Pos(2, -1)));
 
-        assert!(map.cell_empty(Pos(0, 1)));
-        assert!(!map.cell_empty(Pos(0, 2)));
+        assert!(map.cell_empty(&Pos(0, 1)));
+        assert!(!map.cell_empty(&Pos(0, 2)));
     }
     #[test]
     fn test_update() {
