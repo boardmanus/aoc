@@ -2,11 +2,11 @@ use std::{fmt::Debug, fmt::Display, str::FromStr};
 
 use regex::Regex;
 
-#[derive(PartialEq)]
-struct Snafu(String);
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct Snafu(u64);
 
 impl Snafu {
-    fn digit(val: u64) -> char {
+    fn digit_char(val: u64) -> char {
         match val % 5 {
             0 => '0',
             1 => '1',
@@ -16,7 +16,7 @@ impl Snafu {
             _ => panic!(),
         }
     }
-    fn value(c: char) -> i64 {
+    fn char_value(c: char) -> i64 {
         match c {
             '0' => 0,
             '1' => 1,
@@ -27,37 +27,22 @@ impl Snafu {
         }
     }
 }
+
 impl Display for Snafu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        let mut rem = self.0;
+        let mut snafu_str = String::new();
+        while rem > 0 {
+            snafu_str.push(Snafu::digit_char(rem));
+            rem = (rem + 2) / 5;
+        }
+        write!(f, "{}", snafu_str.chars().rev().collect::<String>())
     }
 }
 
 impl Debug for Snafu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<u64> for Snafu {
-    fn from(value: u64) -> Self {
-        let mut rem = value;
-        let mut snafu_str = String::new();
-        while rem > 0 {
-            snafu_str.push(Snafu::digit(rem));
-            rem = (rem + 2) / 5;
-        }
-        Snafu(snafu_str.chars().rev().collect())
-    }
-}
-
-impl From<&Snafu> for u64 {
-    fn from(value: &Snafu) -> Self {
-        value
-            .0
-            .chars()
-            .map(|c| Snafu::value(c))
-            .fold(0, |dec, v| ((dec as i64) * 5 + v) as u64)
+        write!(f, "{}", format_args!("{}", self.0))
     }
 }
 
@@ -66,7 +51,11 @@ impl FromStr for Snafu {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let re = Regex::new(r"\s*([012\-=]+)\s*").unwrap();
         let cap = re.captures(s).ok_or(())?;
-        let value = cap.get(1).ok_or(())?.as_str().to_string();
+        let value_str = cap.get(1).ok_or(())?.as_str().to_string();
+        let value = value_str
+            .chars()
+            .map(Snafu::char_value)
+            .fold(0, |dec, v| ((dec as i64) * 5 + v) as u64);
         Ok(Snafu(value))
     }
 }
@@ -80,19 +69,12 @@ fn parse_fuel_requirements(input: &str) -> Vec<Snafu> {
 
 fn solve_part1(input: &str) -> String {
     let snafus = parse_fuel_requirements(input);
-    let sum: u64 = snafus.iter().map(|snafu| u64::from(snafu)).sum();
-    Snafu::from(sum).to_string()
-}
-
-fn solve_part2(input: &str) -> String {
-    0.to_string()
+    Snafu(snafus.iter().map(|s| s.0).sum()).to_string()
 }
 
 fn main() {
     let res = solve_part1(include_str!("input.txt"));
     println!("Part1: {res}");
-    let res = solve_part2(include_str!("input.txt"));
-    println!("Part2: {res}");
 }
 
 #[cfg(test)]
@@ -124,23 +106,16 @@ mod tests {
     }
 
     #[test]
-    fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT), 54.to_string());
-    }
-
-    #[test]
     fn test_dec_to_snafu() {
         let brochure = parse_test_snafu().unwrap();
         brochure.iter().for_each(|b| {
-            assert_eq!(Snafu::from(b.0), b.1);
+            assert_eq!(Snafu(b.0), b.1);
         });
     }
 
     #[test]
     fn test_snafu_to_dec() {
         let brochure = parse_test_snafu().unwrap();
-        brochure
-            .iter()
-            .for_each(|b| assert_eq!(b.0, u64::from(&b.1)));
+        brochure.iter().for_each(|b| assert_eq!(b.0, b.1 .0));
     }
 }
