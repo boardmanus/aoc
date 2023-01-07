@@ -20,19 +20,15 @@ enum Dir {
 }
 
 lazy_static! {
-    static ref ADJACENT: [Elf; 8] = [
-        Dir::NorthWest.dir(),
-        Dir::North.dir(),
-        Dir::NorthEast.dir(),
-        Dir::East.dir(),
-        Dir::SouthEast.dir(),
-        Dir::South.dir(),
-        Dir::SouthWest.dir(),
-        Dir::West.dir()
-    ];
+    static ref MASKS: Vec<u8> =
+        [[Dir::NorthWest, Dir::North, Dir::NorthEast],
+        [Dir::NorthEast, Dir::East, Dir::SouthEast],
+        [Dir::SouthWest, Dir::West, Dir::NorthWest],
+        [Dir::SouthEast, Dir::South, Dir::SouthWest],].iter().map(|a| a.iter().fold(0u8, |m, d| m | 1 << (*d as u8))).collect();
 }
 
 impl Dir {
+
     fn dir(&self) -> Elf {
         match self {
             Dir::North => Elf(0, -1),
@@ -62,6 +58,19 @@ impl From<u8> for Dir {
         }
     }
 }
+
+impl Iterator for Dir {
+    type Item = Self;
+    fn next(&mut self) -> Option<Self::Item> {
+        let val = *self as u8;
+        if val < 7 {
+            Some(Dir::from(val + 1))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 struct Elf(i64, i64);
 
@@ -92,9 +101,6 @@ struct Grid {
 
 impl Grid {
     fn parse_row(line: &str) -> Option<Vec<bool>> {
-        if line.is_empty() {
-            return None;
-        }
         let row = line
             .chars()
             .map(|c| match c {
@@ -106,7 +112,7 @@ impl Grid {
     }
 
     fn parse_input(input: &str) -> Grid {
-        let rows = input
+        let rows = input.trim()
             .split('\n')
             .flat_map(|line: &str| Grid::parse_row(line))
             .collect::<Vec<_>>();
@@ -126,28 +132,13 @@ impl Grid {
         Grid { elves, start: 0 }
     }
 
-    const NORTH_MASK: u8 = 0b00000111;
-    const EAST_MASK: u8 = 0b00011100;
-    const SOUTH_MASK: u8 = 0b01110000;
-    const WEST_MASK: u8 = 0b11000001;
-
-    const MASKS: [u8; 4] = [
-        Grid::NORTH_MASK,
-        Grid::SOUTH_MASK,
-        Grid::WEST_MASK,
-        Grid::EAST_MASK,
-    ];
-
     fn has_elf(&self, elf: &Elf) -> bool {
         self.elves.contains(elf)
     }
 
     fn adjacent_elves(&self, elf: &Elf) -> u8 {
-        ADJACENT
-            .iter()
-            .enumerate()
-            .filter(|i| self.has_elf(&(*elf + *i.1)))
-            .map(|i| 1 << i.0)
+        Dir::North.filter(|i| self.has_elf(&(*elf + i.dir())))
+            .map(|i| 1 << i as u8)
             .sum()
     }
 
@@ -158,7 +149,7 @@ impl Grid {
         }
         for i in 0..4 {
             let dir = Dir::from((self.start + i) % 4);
-            if (adjacent & Grid::MASKS[dir as usize]) == 0 {
+            if (adjacent & MASKS[dir as usize]) == 0 {
                 return Some(elf.move_dir(dir));
             }
         }
@@ -284,5 +275,11 @@ mod tests {
                 start: 0
             }
         );
+    }
+
+    #[test]
+    fn test_masks() {
+        assert_eq!(MASKS[Dir::North as usize], 1 <<Dir::North as u8| 1 << Dir::NorthEast as u8 | 1 << Dir::NorthWest as u8);
+        assert_eq!(MASKS[Dir::West as usize], 1 <<Dir::West as u8| 1 << Dir::SouthWest as u8 | 1 << Dir::NorthWest as u8);
     }
 }
