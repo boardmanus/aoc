@@ -1,20 +1,86 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::{
     collections::{HashMap, HashSet},
     fmt,
+    ops::Add,
 };
 
+#[derive(Debug, PartialEq, Hash, Clone, Copy)]
+enum Dir {
+    North,
+    South,
+    West,
+    East,
+    NorthWest,
+    NorthEast,
+    SouthWest,
+    SouthEast,
+}
+
+lazy_static! {
+    static ref ADJACENT: [Elf; 8] = [
+        Dir::NorthWest.dir(),
+        Dir::North.dir(),
+        Dir::NorthEast.dir(),
+        Dir::East.dir(),
+        Dir::SouthEast.dir(),
+        Dir::South.dir(),
+        Dir::SouthWest.dir(),
+        Dir::West.dir()
+    ];
+}
+
+impl Dir {
+    fn dir(&self) -> Elf {
+        match self {
+            Dir::North => Elf(0, -1),
+            Dir::South => Elf(0, 1),
+            Dir::West => Elf(-1, 0),
+            Dir::East => Elf(1, 0),
+            Dir::NorthWest => Elf(-1, -1),
+            Dir::NorthEast => Elf(1, -1),
+            Dir::SouthWest => Elf(-1, 1),
+            Dir::SouthEast => Elf(1, 1),
+        }
+    }
+}
+
+impl From<u8> for Dir {
+    fn from(value: u8) -> Self {
+        match value % 8 {
+            0 => Dir::North,
+            1 => Dir::South,
+            2 => Dir::West,
+            3 => Dir::East,
+            4 => Dir::NorthWest,
+            5 => Dir::NorthEast,
+            6 => Dir::SouthWest,
+            7 => Dir::SouthEast,
+            _ => panic!(),
+        }
+    }
+}
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 struct Elf(i64, i64);
 
 impl Elf {
-    fn move_dir(&self, dir: u8) -> Elf {
-        match dir {
-            0 => Elf(self.0, self.1 - 1),
-            1 => Elf(self.0, self.1 + 1),
-            2 => Elf(self.0 - 1, self.1),
-            3 => Elf(self.0 + 1, self.1),
-            _ => panic!(),
-        }
+    fn move_dir(&self, dir: Dir) -> Elf {
+        *self + dir.dir()
+    }
+    fn min(&self, rhs: &Elf) -> Elf {
+        Elf(self.0.min(rhs.0), self.1.min(rhs.1))
+    }
+    fn max(&self, rhs: &Elf) -> Elf {
+        Elf(self.0.max(rhs.0), self.1.max(rhs.1))
+    }
+}
+
+impl Add for Elf {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Elf(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
 
@@ -60,17 +126,6 @@ impl Grid {
         Grid { elves, start: 0 }
     }
 
-    const ADJACENT: [(i64, i64); 8] = [
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-    ];
-
     const NORTH_MASK: u8 = 0b00000111;
     const EAST_MASK: u8 = 0b00011100;
     const SOUTH_MASK: u8 = 0b01110000;
@@ -88,10 +143,10 @@ impl Grid {
     }
 
     fn adjacent_elves(&self, elf: &Elf) -> u8 {
-        Grid::ADJACENT
+        ADJACENT
             .iter()
             .enumerate()
-            .filter(|i| self.has_elf(&Elf(elf.0 + i.1 .0, elf.1 + i.1 .1)))
+            .filter(|i| self.has_elf(&(*elf + *i.1)))
             .map(|i| 1 << i.0)
             .sum()
     }
@@ -102,7 +157,7 @@ impl Grid {
             return None;
         }
         for i in 0..4 {
-            let dir = (self.start + i) % 4;
+            let dir = Dir::from((self.start + i) % 4);
             if (adjacent & Grid::MASKS[dir as usize]) == 0 {
                 return Some(elf.move_dir(dir));
             }
@@ -141,15 +196,11 @@ impl Grid {
     }
 
     fn bounds(&self) -> (Elf, Elf) {
-        let mut min = Elf(i64::MAX, i64::MAX);
-        let mut max = Elf(0, 0);
-        self.elves.iter().for_each(|elf| {
-            min.0 = min.0.min(elf.0);
-            min.1 = min.1.min(elf.1);
-            max.0 = max.0.max(elf.0);
-            max.1 = max.1.max(elf.1);
-        });
-        (min, max)
+        self.elves
+            .iter()
+            .fold((Elf(i64::MAX, i64::MAX), Elf(0, 0)), |mm, elf| {
+                (elf.min(&mm.0), elf.max(&mm.1))
+            })
     }
 
     fn blank_spots(&self) -> i64 {
@@ -163,10 +214,9 @@ impl fmt::Display for Grid {
         let b = self.bounds();
         for y in b.0 .1..=b.1 .1 {
             for x in b.0 .0..=b.1 .0 {
-                let c = if self.elves.contains(&Elf(x, y)) {
-                    '#'
-                } else {
-                    '.'
+                let c = match self.elves.contains(&Elf(x, y)) {
+                    true => '#',
+                    false => '.',
                 };
                 write!(f, "{c}")?;
             }
@@ -179,7 +229,7 @@ impl fmt::Display for Grid {
 fn solve_part1(input: &str) -> String {
     let mut grid = Grid::parse_input(input);
     println!("{grid}");
-    for i in 0..10 {
+    for _ in 0..10 {
         grid.iterate();
         println!("{grid}");
     }
@@ -208,23 +258,16 @@ mod tests {
 
     use super::*;
 
-    const INPUT: &str = "....#..
-..###.#
-#...#.#
-.#...##
-#.###..
-##.#.##
-.#..#..
-";
+    const TEST_INPUT: &str = include_str!("test_input.txt");
 
     #[test]
     fn test_part1() {
-        assert_eq!(solve_part1(INPUT), 110.to_string());
+        assert_eq!(solve_part1(TEST_INPUT), 110.to_string());
     }
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(INPUT), 20.to_string());
+        assert_eq!(solve_part2(TEST_INPUT), 20.to_string());
     }
 
     #[test]
