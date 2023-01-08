@@ -21,13 +21,13 @@ enum Dir {
 
 lazy_static! {
     static ref MASKS: Vec<u8> = [
-        [Dir::NorthWest, Dir::North, Dir::NorthEast],
-        [Dir::NorthEast, Dir::East, Dir::SouthEast],
-        [Dir::SouthWest, Dir::West, Dir::NorthWest],
-        [Dir::SouthEast, Dir::South, Dir::SouthWest],
+        [Dir::North, Dir::NorthWest, Dir::NorthEast],
+        [Dir::South, Dir::SouthEast, Dir::SouthWest],
+        [Dir::West, Dir::SouthWest, Dir::NorthWest],
+        [Dir::East, Dir::NorthEast, Dir::SouthEast],
     ]
     .iter()
-    .map(|a| a.iter().fold(0u8, |m, d| m | 1 << (*d as u8)))
+    .map(|a| a.iter().fold(0u8, |m, d| m | d.bit()))
     .collect();
 }
 
@@ -45,8 +45,16 @@ impl Dir {
         }
     }
 
-    fn iter(&self) -> DirIter {
-        DirIter(Some(*self))
+    fn bit(&self) -> u8 {
+        1 << *self as u8
+    }
+
+    fn iter(&self, num: usize) -> impl Iterator<Item = Dir> {
+        DirIter(Some(*self), num).take(num)
+    }
+
+    fn next(&self, num: usize) -> Dir {
+        Dir::from((*self as u8 + 1) % num as u8)
     }
 }
 
@@ -66,20 +74,17 @@ impl From<u8> for Dir {
     }
 }
 
-struct DirIter(Option<Dir>);
+struct DirIter(Option<Dir>, usize);
 
 impl Iterator for DirIter {
     type Item = Dir;
     fn next(&mut self) -> Option<Dir> {
-        if let Some(dir) = self.0 {
-            let this = dir;
-            match dir as u8 {
-                val if val < 7 => *self = DirIter(Some(Dir::from(val + 1))),
-                _ => *self = DirIter(None),
+        match self.0 {
+            Some(dir) => {
+                *self = DirIter(Some(dir.next(self.1)), self.1);
+                Some(dir)
             }
-            Some(this)
-        } else {
-            None
+            None => None,
         }
     }
 }
@@ -109,7 +114,7 @@ impl Add for Elf {
 #[derive(Debug, PartialEq)]
 struct Grid {
     elves: HashSet<Elf>,
-    start: u8,
+    start: Dir,
 }
 
 impl Grid {
@@ -143,7 +148,10 @@ impl Grid {
             })
             .collect::<HashSet<_>>();
 
-        Grid { elves, start: 0 }
+        Grid {
+            elves,
+            start: Dir::North,
+        }
     }
 
     fn has_elf(&self, elf: &Elf) -> bool {
@@ -152,24 +160,23 @@ impl Grid {
 
     fn adjacent_elves(&self, elf: &Elf) -> u8 {
         Dir::North
-            .iter()
+            .iter(8)
             .filter(|i| self.has_elf(&(*elf + i.dir())))
-            .map(|i| 1 << i as u8)
+            .map(|dir| dir.bit())
             .sum()
     }
 
     fn propose_move(&self, elf: &Elf) -> Option<Elf> {
-        let adjacent = self.adjacent_elves(elf);
-        if adjacent == 0 {
-            return None;
+        match self.adjacent_elves(elf) {
+            0 => None,
+            adj => self
+                .start
+                .iter(4)
+                .find_map(|o| match adj & MASKS[o as usize] {
+                    0 => Some(elf.move_dir(o)),
+                    _ => None,
+                }),
         }
-        for i in 0..4 {
-            let dir = Dir::from((self.start + i) % 4);
-            if (adjacent & MASKS[dir as usize]) == 0 {
-                return Some(elf.move_dir(dir));
-            }
-        }
-        None
     }
 
     fn all_proposals(&self) -> HashMap<Elf, Elf> {
@@ -192,14 +199,12 @@ impl Grid {
 
     fn iterate(&mut self) -> i64 {
         let proposals = self.all_proposals();
-        let mut count = 0;
-        proposals.iter().for_each(|mv| {
+        self.start = self.start.next(4);
+        proposals.iter().fold(0i64, |count, mv| {
             self.elves.remove(mv.1);
             self.elves.insert(*mv.0);
-            count += 1;
-        });
-        self.start = (self.start + 1) % 4;
-        count
+            count + 1
+        })
     }
 
     fn bounds(&self) -> (Elf, Elf) {
@@ -288,15 +293,23 @@ mod tests {
             Grid::parse_input(".#.\n#.#\n#.."),
             Grid {
                 elves: HashSet::from_iter(vec![Elf(1, 0), Elf(0, 1), Elf(2, 1), Elf(0, 2)]),
-                start: 0
+                start: Dir::North
             }
         );
     }
 
     #[test]
+    fn test_adj() {
+        let grid = Grid::parse_input(".#.\n.##\n#..");
+        assert_eq!(
+            grid.adjacent_elves(&Elf(1, 1)),
+            Dir::North.bit() | Dir::East.bit() | Dir::SouthWest.bit()
+        );
+    }
+    #[test]
     fn test_iterator() {
         assert_eq!(
-            Dir::North.iter().collect::<Vec<_>>(),
+            Dir::North.iter(8).collect::<Vec<_>>(),
             vec![
                 Dir::North,
                 Dir::South,
@@ -314,11 +327,11 @@ mod tests {
     fn test_masks() {
         assert_eq!(
             MASKS[Dir::North as usize],
-            1 << Dir::North as u8 | 1 << Dir::NorthEast as u8 | 1 << Dir::NorthWest as u8
+            Dir::North.bit() | Dir::NorthEast.bit() | Dir::NorthWest.bit()
         );
         assert_eq!(
             MASKS[Dir::West as usize],
-            1 << Dir::West as u8 | 1 << Dir::SouthWest as u8 | 1 << Dir::NorthWest as u8
+            Dir::West.bit() | Dir::SouthWest.bit() | Dir::NorthWest.bit()
         );
     }
 }
