@@ -3,7 +3,7 @@ extern crate lazy_static;
 
 use std::{
     collections::{HashMap, HashSet},
-    fmt,
+    fmt::{self, Display},
     ops::Add,
 };
 
@@ -111,7 +111,7 @@ impl Add for Elf {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Grid {
     elves: HashSet<Elf>,
     start: Dir,
@@ -197,16 +197,6 @@ impl Grid {
             })
     }
 
-    fn iterate(&mut self) -> i64 {
-        let proposals = self.all_proposals();
-        self.start = self.start.next(4);
-        proposals.iter().fold(0i64, |count, mv| {
-            self.elves.remove(mv.1);
-            self.elves.insert(*mv.0);
-            count + 1
-        })
-    }
-
     fn bounds(&self) -> (Elf, Elf) {
         self.elves
             .iter()
@@ -215,13 +205,54 @@ impl Grid {
             })
     }
 
-    fn blank_spots(&self) -> i64 {
+    fn blank_spots(&self, extend: i64) -> i64 {
         let b = self.bounds();
-        (b.1 .0 - b.0 .0 + 1) * (b.1 .1 - b.0 .1 + 1) - self.elves.len() as i64
+        (b.1 .0 - b.0 .0 + extend) * (b.1 .1 - b.0 .1 + extend) - self.elves.len() as i64
     }
+
+    /*    fn iter_mut<'a>(&'a mut self) -> GridIter<'a> {
+        GridIter { grid: self }
+    }*/
 }
 
-impl fmt::Display for Grid {
+impl Iterator for Grid {
+    type Item = Grid;
+    fn next(&mut self) -> Option<Self::Item> {
+        let proposals = self.all_proposals();
+        self.start = self.start.next(4);
+        proposals.iter().for_each(|mv| {
+            self.elves.remove(mv.1);
+            self.elves.insert(*mv.0);
+        });
+
+        match proposals.len() {
+            0 => None,
+            _ => Some(self.clone()),
+        }
+    }
+}
+/*
+struct GridIter<'a> {
+    grid: &'a mut Grid,
+}
+impl<'a> Iterator for GridIter<'a> {
+    type Item = &'a Grid;
+    fn next(&mut self) -> Option<Self::Item> {
+        let proposals = self.grid.all_proposals();
+        self.grid.start = self.grid.start.next(4);
+        proposals.iter().for_each(|mv| {
+            self.grid.elves.remove(mv.1);
+            self.grid.elves.insert(*mv.0);
+        });
+
+        match proposals.len() {
+            0 => None,
+            _ => Some(self.grid),
+        }
+    }
+}
+*/
+impl<'a> Display for Grid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let b = self.bounds();
         for y in b.0 .1..=b.1 .1 {
@@ -241,21 +272,12 @@ impl fmt::Display for Grid {
 fn solve_part1(input: &str) -> String {
     let mut grid = Grid::parse_input(input);
     println!("{grid}");
-    for _ in 0..10 {
-        grid.iterate();
-        println!("{grid}");
-    }
-    grid.blank_spots().to_string()
+    grid.nth(10).unwrap().blank_spots(1).to_string()
 }
 
 fn solve_part2(input: &str) -> String {
-    let mut grid = Grid::parse_input(input);
-    let mut count = 1;
-    while grid.iterate() != 0 {
-        count += 1;
-    }
-    println!("{grid}");
-    count.to_string()
+    let grid = Grid::parse_input(input);
+    (grid.count() + 1).to_string()
 }
 
 fn main() {
@@ -293,7 +315,7 @@ mod tests {
             Grid::parse_input(".#.\n#.#\n#.."),
             Grid {
                 elves: HashSet::from_iter(vec![Elf(1, 0), Elf(0, 1), Elf(2, 1), Elf(0, 2)]),
-                start: Dir::North
+                start: Dir::North,
             }
         );
     }
