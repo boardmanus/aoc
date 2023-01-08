@@ -20,15 +20,18 @@ enum Dir {
 }
 
 lazy_static! {
-    static ref MASKS: Vec<u8> =
-        [[Dir::NorthWest, Dir::North, Dir::NorthEast],
+    static ref MASKS: Vec<u8> = [
+        [Dir::NorthWest, Dir::North, Dir::NorthEast],
         [Dir::NorthEast, Dir::East, Dir::SouthEast],
         [Dir::SouthWest, Dir::West, Dir::NorthWest],
-        [Dir::SouthEast, Dir::South, Dir::SouthWest],].iter().map(|a| a.iter().fold(0u8, |m, d| m | 1 << (*d as u8))).collect();
+        [Dir::SouthEast, Dir::South, Dir::SouthWest],
+    ]
+    .iter()
+    .map(|a| a.iter().fold(0u8, |m, d| m | 1 << (*d as u8)))
+    .collect();
 }
 
 impl Dir {
-
     fn dir(&self) -> Elf {
         match self {
             Dir::North => Elf(0, -1),
@@ -40,6 +43,10 @@ impl Dir {
             Dir::SouthWest => Elf(-1, 1),
             Dir::SouthEast => Elf(1, 1),
         }
+    }
+
+    fn iter(&self) -> DirIter {
+        DirIter(Some(*self))
     }
 }
 
@@ -59,12 +66,18 @@ impl From<u8> for Dir {
     }
 }
 
-impl Iterator for Dir {
-    type Item = Self;
-    fn next(&mut self) -> Option<Self::Item> {
-        let val = *self as u8;
-        if val < 7 {
-            Some(Dir::from(val + 1))
+struct DirIter(Option<Dir>);
+
+impl Iterator for DirIter {
+    type Item = Dir;
+    fn next(&mut self) -> Option<Dir> {
+        if let Some(dir) = self.0 {
+            let this = dir;
+            match dir as u8 {
+                val if val < 7 => *self = DirIter(Some(Dir::from(val + 1))),
+                _ => *self = DirIter(None),
+            }
+            Some(this)
         } else {
             None
         }
@@ -112,7 +125,8 @@ impl Grid {
     }
 
     fn parse_input(input: &str) -> Grid {
-        let rows = input.trim()
+        let rows = input
+            .trim()
             .split('\n')
             .flat_map(|line: &str| Grid::parse_row(line))
             .collect::<Vec<_>>();
@@ -137,7 +151,9 @@ impl Grid {
     }
 
     fn adjacent_elves(&self, elf: &Elf) -> u8 {
-        Dir::North.filter(|i| self.has_elf(&(*elf + i.dir())))
+        Dir::North
+            .iter()
+            .filter(|i| self.has_elf(&(*elf + i.dir())))
             .map(|i| 1 << i as u8)
             .sum()
     }
@@ -278,8 +294,31 @@ mod tests {
     }
 
     #[test]
+    fn test_iterator() {
+        assert_eq!(
+            Dir::North.iter().collect::<Vec<_>>(),
+            vec![
+                Dir::North,
+                Dir::South,
+                Dir::West,
+                Dir::East,
+                Dir::NorthWest,
+                Dir::NorthEast,
+                Dir::SouthWest,
+                Dir::SouthEast
+            ]
+        );
+    }
+
+    #[test]
     fn test_masks() {
-        assert_eq!(MASKS[Dir::North as usize], 1 <<Dir::North as u8| 1 << Dir::NorthEast as u8 | 1 << Dir::NorthWest as u8);
-        assert_eq!(MASKS[Dir::West as usize], 1 <<Dir::West as u8| 1 << Dir::SouthWest as u8 | 1 << Dir::NorthWest as u8);
+        assert_eq!(
+            MASKS[Dir::North as usize],
+            1 << Dir::North as u8 | 1 << Dir::NorthEast as u8 | 1 << Dir::NorthWest as u8
+        );
+        assert_eq!(
+            MASKS[Dir::West as usize],
+            1 << Dir::West as u8 | 1 << Dir::SouthWest as u8 | 1 << Dir::NorthWest as u8
+        );
     }
 }
