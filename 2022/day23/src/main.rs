@@ -179,22 +179,30 @@ impl Grid {
         }
     }
 
-    fn all_proposals(&self) -> HashMap<Elf, Elf> {
-        let mut moves: HashSet<Elf> = Default::default();
-        self.elves
+    fn all_proposals(&self) -> (HashSet<Elf>, usize) {
+        let mut num_changes = 0usize;
+        let proposals = self
+            .elves
             .iter()
             .map(|elf| (elf, self.propose_move(elf)))
-            .fold(Default::default(), |mut acc, elf| {
-                if let Some(m) = elf.1 {
-                    if moves.contains(&m) {
-                        acc.remove(&m);
+            .fold(HashMap::<Elf, Elf>::default(), |mut acc, elf| {
+                if let Some(new_elf) = elf.1 {
+                    if let Some(existing_elf) = acc.remove(&new_elf) {
+                        acc.insert(existing_elf, existing_elf);
+                        acc.insert(*elf.0, *elf.0);
+                        num_changes -= 1;
                     } else {
-                        moves.insert(m);
-                        acc.insert(m, *elf.0);
+                        acc.insert(new_elf, *elf.0);
+                        num_changes += 1;
                     }
+                } else {
+                    acc.insert(*elf.0, *elf.0);
                 }
                 acc
             })
+            .into_keys()
+            .collect::<HashSet<_>>();
+        (proposals, num_changes)
     }
 
     fn bounds(&self) -> (Elf, Elf) {
@@ -209,49 +217,26 @@ impl Grid {
         let b = self.bounds();
         (b.1 .0 - b.0 .0 + extend) * (b.1 .1 - b.0 .1 + extend) - self.elves.len() as i64
     }
-
-    /*    fn iter_mut<'a>(&'a mut self) -> GridIter<'a> {
-        GridIter { grid: self }
-    }*/
 }
 
 impl Iterator for Grid {
     type Item = Grid;
     fn next(&mut self) -> Option<Self::Item> {
-        let proposals = self.all_proposals();
-        self.start = self.start.next(4);
-        proposals.iter().for_each(|mv| {
-            self.elves.remove(mv.1);
-            self.elves.insert(*mv.0);
-        });
-
-        match proposals.len() {
+        let (proposals, num_changes) = self.all_proposals();
+        match num_changes {
             0 => None,
-            _ => Some(self.clone()),
+            _ => {
+                let curr_grid = Grid {
+                    elves: std::mem::replace(&mut self.elves, proposals),
+                    start: self.start,
+                };
+                self.start = self.start.next(4);
+                Some(curr_grid)
+            }
         }
     }
 }
-/*
-struct GridIter<'a> {
-    grid: &'a mut Grid,
-}
-impl<'a> Iterator for GridIter<'a> {
-    type Item = &'a Grid;
-    fn next(&mut self) -> Option<Self::Item> {
-        let proposals = self.grid.all_proposals();
-        self.grid.start = self.grid.start.next(4);
-        proposals.iter().for_each(|mv| {
-            self.grid.elves.remove(mv.1);
-            self.grid.elves.insert(*mv.0);
-        });
 
-        match proposals.len() {
-            0 => None,
-            _ => Some(self.grid),
-        }
-    }
-}
-*/
 impl<'a> Display for Grid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let b = self.bounds();
