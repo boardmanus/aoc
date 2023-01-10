@@ -7,10 +7,6 @@ fn mix_nth(data: &mut VecDeque<(usize, i64)>, nth: usize) {
     let mix_n = (d.1 + nth_out as i64).rem_euclid(len as i64);
     data.remove(nth_out);
     data.insert(mix_n as usize, d);
-
-    //let mix_n = (d.1.rem_euclid((len - 1) as i64) as usize + nth_out) % len;
-    //data[nth_out] = data[mix_n];
-    //data[mix_n] = d;
 }
 
 fn mix(it: usize, key: i64, data: &Vec<i64>) -> VecDeque<i64> {
@@ -57,6 +53,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -84,85 +82,12 @@ mod tests {
         }
         true
     }
-    /*
-        #[test]
-        fn test_extremes() {
-            let data = vec![-21i64, 21, 22, -22, 14, -20, 20, 23];
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 0),
-                &[-21i64, 21, 22, -22, 14, -20, 20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 1),
-                &[-21i64, 21, 22, -22, 14, -20, 20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 2),
-                &[-21i64, 21, -22, 22, 14, -20, 20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 3),
-                &[-21i64, 21, -22, 22, 14, -20, 20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 4),
-                &[-21i64, 21, 22, -22, 14, -20, 20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 5),
-                &[-21i64, 21, 22, -22, 14, 20, -20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 6),
-                &[-21i64, 21, 22, -22, 14, 20, -20, 23].into()
-            ));
-            let mut out: VecDeque<_> = data.clone().into();
-            assert!(relatively_eq(
-                mix_nth(&data, &mut out, 7),
-                &[-21i64, 21, 23, 22, -22, 14, -20, 20].into()
-            ));
-        }
-        #[test]
-        fn test_mix_nth() {
-            let data: Vec<i64> = [1, 2, -3, 3, -2, 0, 4].into();
 
-            let mut outdata: VecDeque<i64> = [2, 1, -3, 3, -2, 0, 4].into();
-            let mixed: VecDeque<i64> = [2, 1, -2, -3, 3, 0, 4].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 4), &mixed));
-
-            let mut outdata: VecDeque<i64> = [2, 1, -3, 3, -2, 0, 4].into();
-            let mixed: VecDeque<i64> = [1, -3, 2, 3, -2, 0, 4].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 1), &mixed));
-
-            let mut outdata: VecDeque<i64> = [1, -3, 2, 3, -2, 0, 4].into();
-            let mixed: VecDeque<i64> = [1, 2, 3, -2, -3, 0, 4].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 2), &mixed));
-
-            let mut outdata: VecDeque<i64> = [1, 2, -2, -3, 0, 3, 4].into();
-            let mixed: VecDeque<i64> = [1, 2, -3, 0, 3, 4, -2].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 4), &mixed));
-
-            let mut outdata: VecDeque<i64> = [1, 2, -3, 0, 3, 4, -2].into();
-            let mixed: VecDeque<i64> = [1, 2, -3, 0, 3, 4, -2].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 5), &mixed));
-
-            let mut outdata: VecDeque<i64> = [1, 2, -3, 0, 3, 4, -2].into();
-            let mixed: VecDeque<i64> = [1, 2, -3, 4, 0, 3, -2].into();
-            assert!(relatively_eq(mix_nth(&data, &mut outdata, 6), &mixed));
-        }
-    */
     #[test]
     fn test_mix() {
         let mixed_data: VecDeque<i64> = [1, 2, -3, 4, 0, 3, -2].into();
         let mut data = parse(include_str!("test.txt"));
-        assert!(relatively_eq(&mix(&mut data), &mixed_data));
+        assert!(relatively_eq(&mix(1, 1, &mut data), &mixed_data));
     }
 
     #[test]
@@ -170,5 +95,25 @@ mod tests {
         assert_eq!(-7 % 5, -2);
         assert_eq!((-7 % 5 + 5) % 5, 3);
         assert_eq!(-(7 % 5), -2);
+    }
+
+    #[test]
+    fn test_dups() {
+        let data = parse(include_str!("input.txt"));
+        let dups = data
+            .iter()
+            .fold(HashMap::<i64, usize>::default(), |mut m, k| {
+                if let Some(cnt) = m.get_mut(k) {
+                    *cnt += 1;
+                } else {
+                    m.insert(*k, 1);
+                }
+                m
+            })
+            .into_iter()
+            .filter(|(k, v)| *v > 1)
+            .collect::<Vec<_>>();
+        println!("{dups:?}");
+        println!("Num dups = {}", dups.iter().fold(0, |s, (v, n)| s + n - 1));
     }
 }
