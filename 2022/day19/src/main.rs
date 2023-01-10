@@ -90,18 +90,12 @@ impl Sub for Resources {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct BluePrint {
-    id: usize,
-    robot_recipes: [Recipe; 4],
-    max_robots: Robots,
-}
-
 #[derive(Debug)]
 enum BluePrintError {
     Regex(regex::Error),
     Parse(ParseIntError),
 }
+
 impl Display for BluePrintError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -110,6 +104,7 @@ impl Display for BluePrintError {
         }
     }
 }
+
 impl std::error::Error for BluePrintError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
@@ -118,15 +113,24 @@ impl std::error::Error for BluePrintError {
         }
     }
 }
+
 impl From<regex::Error> for BluePrintError {
     fn from(e: regex::Error) -> BluePrintError {
         BluePrintError::Regex(e)
     }
 }
+
 impl From<ParseIntError> for BluePrintError {
     fn from(e: ParseIntError) -> BluePrintError {
         BluePrintError::Parse(e)
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BluePrint {
+    id: usize,
+    robot_recipes: [Recipe; 4],
+    max_robots: Robots,
 }
 
 impl BluePrint {
@@ -150,6 +154,7 @@ impl BluePrint {
             max_robots,
         }
     }
+
     fn parse(input: &str) -> Result<BluePrint, BluePrintError> {
         // Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.
         let re = regex::Regex::new(
@@ -165,19 +170,42 @@ impl BluePrint {
         ))
     }
 
-    fn buildable_robots<'a>(
-        &'a self,
-        robots: &'a Resources,
-    ) -> impl Iterator<Item = Resource> + '_ {
+    fn is_buildable(&self, state: &State, recipe: &Recipe, robot: usize) -> bool {
+        if (state.robots.quantity[robot] >= self.max_robots.quantity[robot])
+            || (recipe.quantity[0] != 0 && state.robots.quantity[0] == 0)
+            || (recipe.quantity[1] != 0 && state.robots.quantity[1] == 0)
+            || (recipe.quantity[2] != 0 && state.robots.quantity[2] == 0)
+        {
+            return false;
+        }
+
+        // Only build geodes if we can
+        if robot != Resource::Geode as usize
+            && state
+                .resources
+                .contains(&self.robot_recipes[Resource::Geode as usize])
+        {
+            return false;
+        }
+        /*
+                // Only build obsidian if we can
+                if robot != Resource::Obsidian
+                    && robot != Resource::Geode
+                    && state
+                        .resources
+                        .contains(&self.robot_recipes[Resource::Obsidian as usize])
+                {
+                    return false;
+                }
+        */
+        true
+    }
+
+    fn buildable_robots<'a>(&'a self, state: &'a State) -> impl Iterator<Item = Resource> + '_ {
         self.robot_recipes
             .iter()
             .enumerate()
-            .filter(move |r| {
-                (robots.quantity[r.0] < self.max_robots.quantity[r.0])
-                    && (r.1.quantity[0] == 0 || robots.quantity[0] > 0)
-                    && (r.1.quantity[1] == 0 || robots.quantity[1] > 0)
-                    && (r.1.quantity[2] == 0 || robots.quantity[2] > 0)
-            })
+            .filter(|(robot, recipe)| self.is_buildable(state, *recipe, *robot))
             .map(|r| Resource::from(r.0))
     }
 
@@ -247,22 +275,24 @@ impl State {
         }
     }
 
-    fn update(&self, blueprint: &BluePrint) -> Vec<State> {
+    fn update<'a>(&self, blueprint: &BluePrint, new_states: &'a mut HashSet<State>) {
         if let Some((used_resources, created_robots)) =
             blueprint.build(self.factory_target, self.resources)
         {
             let new_robots = self.robots + created_robots;
             let new_resources = self.resources - used_resources + self.robots;
             blueprint
-                .buildable_robots(&self.robots)
+                .buildable_robots(self)
                 .map(|r| State::new(Some(r), new_robots, new_resources))
-                .collect()
+                .for_each(|s| {
+                    new_states.insert(s);
+                });
         } else {
-            vec![State::new(
+            new_states.insert(State::new(
                 self.factory_target,
                 self.robots,
                 self.resources + self.robots,
-            )]
+            ));
         }
     }
 }
@@ -291,17 +321,11 @@ impl BluePrint {
             .fold(
                 HashSet::<State>::from_iter(vec![State::default()]),
                 |states, _| {
+                    let mut next_states = HashSet::<State>::default();
                     states
                         .iter()
-                        .fold(HashSet::<State>::default(), |new_states, state| {
-                            state
-                                .update(self)
-                                .iter()
-                                .fold(new_states, |mut new_states, s| {
-                                    new_states.insert(*s);
-                                    new_states
-                                })
-                        })
+                        .for_each(|state| state.update(self, &mut next_states));
+                    next_states
                 },
             )
             .iter()
