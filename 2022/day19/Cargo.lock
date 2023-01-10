@@ -53,6 +53,7 @@ dependencies = [
  "enum-map",
  "enumset",
  "impl_ops",
+ "rc",
  "regex",
 ]
 
@@ -158,6 +159,12 @@ checksum = "8856d8364d252a14d474036ea1358d63c9e6965c8e5c1885c18f73d70bff9c7b"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rc"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea7a573cb939eb63f37bc0228511f9780b7cdd2599df547706f8ffc58fa693bb"
 
 [[package]]
 name = "regex"

@@ -1,11 +1,13 @@
 #![feature(hash_set_entry)]
 
 use enum_iterator::Sequence;
-use std::collections::HashSet;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Sub};
+use std::rc::Rc;
 
 #[derive(Debug, Sequence, Clone, Copy, PartialEq, Eq, Hash)]
 enum Resource {
@@ -171,6 +173,13 @@ impl BluePrint {
     }
 
     fn is_buildable(&self, state: &State, recipe: &Recipe, robot: usize) -> bool {
+        if state.robots.quantity[0] < self.max_robots.quantity[0] / 2 {
+            return robot == 0;
+        }
+        //if robot != 1 && state.robots.quantity[1] < self.max_robots.quantity[1] / 4 {
+        //    return robot == 1;
+        //}
+
         if (state.robots.quantity[robot] >= self.max_robots.quantity[robot])
             || (recipe.quantity[0] != 0 && state.robots.quantity[0] == 0)
             || (recipe.quantity[1] != 0 && state.robots.quantity[1] == 0)
@@ -181,23 +190,14 @@ impl BluePrint {
 
         // Only build geodes if we can
         if robot != Resource::Geode as usize
+            && robot != Resource::Obsidian as usize
             && state
                 .resources
                 .contains(&self.robot_recipes[Resource::Geode as usize])
         {
             return false;
         }
-        /*
-                // Only build obsidian if we can
-                if robot != Resource::Obsidian
-                    && robot != Resource::Geode
-                    && state
-                        .resources
-                        .contains(&self.robot_recipes[Resource::Obsidian as usize])
-                {
-                    return false;
-                }
-        */
+
         true
     }
 
@@ -249,6 +249,30 @@ impl BluePrints {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+enum Path {
+    Cons(Resource, Rc<Path>),
+    Empty,
+}
+
+impl Path {
+    fn extend(&self, resource: Resource) -> Path {
+        Path::Cons(resource, Rc::new(self.clone()))
+    }
+}
+
+impl Display for Path {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut p = self;
+        while let Path::Cons(resource, p_next) = p {
+            write!(f, "{resource:?}, ")?;
+            p = p_next;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct State {
     factory_target: Option<Resource>,
@@ -275,7 +299,12 @@ impl State {
         }
     }
 
-    fn update<'a>(&self, blueprint: &BluePrint, new_states: &'a mut HashSet<State>) {
+    fn update<'a>(
+        &self,
+        blueprint: &BluePrint,
+        path: Path,
+        new_states: &'a mut HashMap<State, Path>,
+    ) {
         if let Some((used_resources, created_robots)) =
             blueprint.build(self.factory_target, self.resources)
         {
@@ -285,14 +314,17 @@ impl State {
                 .buildable_robots(self)
                 .map(|r| State::new(Some(r), new_robots, new_resources))
                 .for_each(|s| {
-                    new_states.insert(s);
+                    new_states.insert(s, path.extend(s.factory_target.unwrap()));
                 });
         } else {
-            new_states.insert(State::new(
-                self.factory_target,
-                self.robots,
-                self.resources + self.robots,
-            ));
+            new_states.insert(
+                State::new(
+                    self.factory_target,
+                    self.robots,
+                    self.resources + self.robots,
+                ),
+                path,
+            );
         }
     }
 }
@@ -317,21 +349,44 @@ impl BluePrint {
         self.max_geodes(time) * self.id
     }
     fn max_geodes(&self, time: usize) -> usize {
-        (0..time)
+        let res = (0..time)
             .fold(
-                HashSet::<State>::from_iter(vec![State::default()]),
+                HashMap::<State, Path>::from_iter(vec![(State::default(), Path::Empty)]),
                 |states, _| {
-                    let mut next_states = HashSet::<State>::default();
-                    states
-                        .iter()
-                        .for_each(|state| state.update(self, &mut next_states));
+                    let mut next_states = HashMap::<State, Path>::default();
+                    states.iter().for_each(|(state, path)| {
+                        state.update(self, path.clone(), &mut next_states)
+                    });
                     next_states
                 },
             )
-            .iter()
-            .map(|s| s.resources.quantity[Resource::Geode as usize])
-            .max()
-            .unwrap()
+            .into_iter()
+            .fold(Vec::<(State, Path)>::default(), |mut acc, state_path| {
+                if let Some(last) = acc.last() {
+                    match last.0.resources.quantity[Resource::Geode as usize]
+                        .cmp(&state_path.0.resources.quantity[Resource::Geode as usize])
+                    {
+                        Ordering::Less => {
+                            acc.clear();
+                            acc.push(state_path);
+                        }
+                        Ordering::Equal => {
+                            acc.push(state_path);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    acc.push(state_path);
+                }
+                acc
+            });
+        println!("{:?}:", self);
+        for a in res.iter().enumerate() {
+            let num_geodes = a.1 .0.resources.quantity[3];
+            println!("Blueprint-{}:{num_geodes}:{}: {:?}", self.id, a.0, a.1 .0);
+            println!("Blueprint-{}:{num_geodes}:{}: {}", self.id, a.0, a.1 .1);
+        }
+        res.first().unwrap().0.resources.quantity[Resource::Geode as usize]
     }
 }
 
@@ -391,9 +446,8 @@ Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsid
     #[test]
     fn test_buildable_robots() {
         let bp = BluePrints::parse(INPUT).unwrap();
-        let ql = bp.design[0]
-            .buildable_robots(&Resources::new([1, 1, 0, 0]))
-            .collect::<Vec<_>>();
+        let state = State::new(None, Resources::default(), Resources::new([1, 1, 0, 0]));
+        let ql = bp.design[0].buildable_robots(&state).collect::<Vec<_>>();
         assert_eq!(ql, vec![Resource::Ore, Resource::Clay, Resource::Obsidian]);
     }
 
