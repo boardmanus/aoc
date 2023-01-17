@@ -1,18 +1,21 @@
 mod rts;
-use rts::BluePrints;
+use rts::BluePrint;
 
 fn solve_part1(input: &str) -> String {
-    if let Ok(blueprints) = BluePrints::parse(input) {
-        blueprints.quality_sum(24).to_string()
+    if let Ok(blueprints) = BluePrint::parse(input) {
+        blueprints
+            .iter()
+            .map(|bp| bp.quality_level(24))
+            .sum::<usize>()
+            .to_string()
     } else {
         "failed".to_string()
     }
 }
 
 fn solve_part2(input: &str) -> String {
-    if let Ok(blueprints) = BluePrints::parse(input) {
+    if let Ok(blueprints) = BluePrint::parse(input) {
         blueprints
-            .design()
             .iter()
             .take(3)
             .map(|bp| bp.max_geodes(32))
@@ -43,6 +46,6 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT), "");
+        assert_eq!(solve_part2(TEST_INPUT), "3472");
     }
 }

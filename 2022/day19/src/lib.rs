@@ -26,12 +26,12 @@ pub fn init() {
 }
 
 #[wasm_bindgen]
-pub struct WebBluePrints(rts::BluePrints);
+pub struct WebBluePrint(rts::BluePrint);
 
 #[wasm_bindgen]
-impl WebBluePrints {
+impl WebBluePrint {
     #[wasm_bindgen(constructor)]
-    pub fn new(input: &str) -> WebBluePrints {
-        Self(rts::BluePrints::parse(input).unwrap())
+    pub fn new(input: &str) -> WebBluePrint {
+        Self(rts::BluePrint::parse_line(input).unwrap())
     }
 }

@@ -243,21 +243,6 @@ impl BluePrint {
         }
     }
 
-    fn parse(input: &str) -> Result<BluePrint, BluePrintError> {
-        // Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.
-        let re = regex::Regex::new(
-            r"^Blueprint (\d+): .* ore robot costs (\d+) ore.* clay robot costs (\d+) ore.* obsidian robot costs (\d+) ore and (\d+) clay.* geode robot costs (\d+) ore and (\d+) obsidian.$",
-        )?;
-        let c = re.captures(input).unwrap();
-        Ok(BluePrint::new(
-            c[1].parse()?,
-            Resources::new([c[2].parse()?, 0, 0, 0]),
-            Resources::new([c[3].parse()?, 0, 0, 0]),
-            Resources::new([c[4].parse()?, c[5].parse()?, 0, 0]),
-            Resources::new([c[6].parse()?, 0, c[7].parse()?, 0]),
-        ))
-    }
-
     fn is_buildable(&self, state: &State, recipe: &Recipe, robot: usize) -> bool {
         // Not buildable if no robot to collect required resources
         if (state.robots.quantity[robot] >= self.max_robots.quantity[robot])
@@ -314,7 +299,7 @@ impl BluePrint {
         }
     }
 
-    fn quality_level(&self, time: usize) -> usize {
+    pub fn quality_level(&self, time: usize) -> usize {
         self.max_geodes(time) * self.id
     }
 
@@ -360,35 +345,33 @@ impl BluePrint {
             0
         }
     }
-}
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct BluePrints {
-    design: Vec<BluePrint>,
-}
+    pub fn parse_line(input: &str) -> Result<BluePrint, BluePrintError> {
+        // Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.
+        let re = regex::Regex::new(
+            r"^Blueprint (\d+): .* ore robot costs (\d+) ore.* clay robot costs (\d+) ore.* obsidian robot costs (\d+) ore and (\d+) clay.* geode robot costs (\d+) ore and (\d+) obsidian.$",
+        )?;
+        let c = re.captures(input).unwrap();
+        Ok(BluePrint::new(
+            c[1].parse()?,
+            Resources::new([c[2].parse()?, 0, 0, 0]),
+            Resources::new([c[3].parse()?, 0, 0, 0]),
+            Resources::new([c[4].parse()?, c[5].parse()?, 0, 0]),
+            Resources::new([c[6].parse()?, 0, c[7].parse()?, 0]),
+        ))
+    }
 
-impl BluePrints {
-    pub fn parse(input: &str) -> Result<BluePrints, BluePrintError> {
+    pub fn parse(input: &str) -> Result<Vec<BluePrint>, BluePrintError> {
         let mut res: (Vec<_>, Vec<_>) = input
             .split('\n')
             .filter(|s| !s.is_empty())
-            .map(BluePrint::parse)
+            .map(BluePrint::parse_line)
             .partition(Result::is_ok);
         if let Some(err) = res.1.pop() {
             Err(err.err().unwrap())
         } else {
-            Ok(BluePrints {
-                design: res.0.into_iter().flatten().collect::<Vec<_>>(),
-            })
+            Ok(res.0.into_iter().flatten().collect::<Vec<_>>())
         }
-    }
-
-    pub fn design(&self) -> &Vec<BluePrint> {
-        &self.design
-    }
-
-    pub fn quality_sum(&self, time: usize) -> usize {
-        self.design.iter().map(|bp| bp.quality_level(time)).sum()
     }
 }
 
@@ -400,27 +383,27 @@ mod tests {
 
     #[test]
     fn test_32() {
-        let blueprints = BluePrints::parse(TEST_INPUT).unwrap();
-        let bp = blueprints.design.iter().take(3).collect::<Vec<_>>();
+        let blueprints = BluePrint::parse(TEST_INPUT).unwrap();
+        let bp = blueprints.iter().take(3).collect::<Vec<_>>();
         assert_eq!(bp[0].max_geodes(32), 56)
     }
 
     #[test]
     fn test_buildable_robots() {
-        let bp = BluePrints::parse(TEST_INPUT).unwrap();
+        let bp = BluePrint::parse(TEST_INPUT).unwrap();
         let state = State::new(
             None,
             Resources::new([1, 1, 0, 0]),
             Resources::new([1, 1, 0, 0]),
         );
-        let ql = bp.design[0].buildable_robots(&state).collect::<Vec<_>>();
+        let ql = bp[0].buildable_robots(&state).collect::<Vec<_>>();
         assert_eq!(ql, vec![Resource::Ore, Resource::Clay, Resource::Obsidian]);
     }
 
     #[test]
     fn test_blueprint_ql() {
-        let bp = BluePrints::parse(TEST_INPUT).unwrap();
-        let ql = bp.design[0].quality_level(24);
+        let bp = BluePrint::parse(TEST_INPUT).unwrap();
+        let ql = bp[0].quality_level(24);
         assert_eq!(ql, 9);
     }
 
