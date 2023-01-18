@@ -25,6 +25,9 @@ pub fn init() {
     log!("Initialized!");
 }
 
+const BLUEPRINT_STR: &str = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.";
+
+
 #[wasm_bindgen]
 pub struct WebBluePrint(rts::BluePrint);
 
@@ -33,5 +36,10 @@ impl WebBluePrint {
     #[wasm_bindgen(constructor)]
     pub fn new(input: &str) -> WebBluePrint {
         Self(rts::BluePrint::parse_line(input).unwrap())
+    }
+    
+    #[wasm_bindgen]
+    pub fn default() -> Self {
+        WebBluePrint::new(BLUEPRINT_STR)
     }
 }

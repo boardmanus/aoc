@@ -1,4 +1,4 @@
-import { WebBluePrints, init } from "day19";
+import { WebBluePrint, init } from "day19";
 init();
 
 // DOM is already loaded, the `<script>` tag is at the bottom of the page
@@ -29,7 +29,7 @@ let render = () => {
 };
 
 let reset = () => {
-  state.grid = new WebBluePrints(state.input);
+  state.grid = WebBluePrint.default();
   state.playing = false;
   playpause_button.innerText = "Play";
 
