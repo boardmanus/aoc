@@ -1,4 +1,4 @@
-import { WebBluePrint, init } from "day19";
+import { WebTime, WebBluePrint, init } from "day19";
 init();
 
 // DOM is already loaded, the `<script>` tag is at the bottom of the page
@@ -18,22 +18,16 @@ Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsid
 let state = { input, playing: false };
 
 let render = () => {
-  let { grid } = state;
-  content.innerHTML = grid.to_svg();
-
-  let percent = (grid.num_visited() / grid.num_cells()) * 100;
-  status.innerText = `Step ${grid.num_steps()}, ${percent.toFixed(
-    1
-  )}% coverage`;
-  bar.style.right = `${100 - percent}%`;
+  let { blueprint, time } = state;
+  let svg = time.to_svg(blueprint);
+  content.innerHTML = svg;
 };
 
 let reset = () => {
-  state.grid = WebBluePrint.default();
+  state.blueprint = WebBluePrint.default();
+  state.time = new WebTime();
   state.playing = false;
   playpause_button.innerText = "Play";
-
-  content.innerHTML = state.grid.to_svg();
   render();
 };
 
@@ -52,16 +46,8 @@ file_input.onchange = (ev) => {
 
 reset_button.onclick = reset;
 step_button.onclick = () => {
-  let running = state.grid.step();
+  state.time = state.time.update(state.blueprint);
   render();
-
-  if (running) {
-    requestAnimationFrame(() => {
-      if (state.playing) {
-        step_button.onclick();
-      }
-    });
-  }
 };
 step10_button.onclick = () => {
   for (let i = 0; i < 10; i++) {

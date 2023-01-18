@@ -63,7 +63,7 @@ impl From<usize> for Resource {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Resources {
-    quantity: [usize; 4],
+    pub quantity: [usize; 4],
 }
 
 pub type Recipe = Resources;
@@ -150,9 +150,9 @@ impl Display for Path {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct State {
-    factory_target: Option<Resource>,
-    robots: Resources,
-    resources: Resources,
+    pub factory_target: Option<Resource>,
+    pub robots: Resources,
+    pub resources: Resources,
 }
 
 impl State {
@@ -216,9 +216,9 @@ impl Display for State {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BluePrint {
-    id: usize,
-    robot_recipes: [Recipe; 4],
-    max_robots: Robots,
+    pub id: usize,
+    pub robot_recipes: [Recipe; 4],
+    pub max_robots: Robots,
 }
 
 impl BluePrint {
