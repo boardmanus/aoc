@@ -42,7 +42,7 @@ impl From<ParseIntError> for BluePrintError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Resource {
+pub enum Resource {
     Ore,
     Clay,
     Obsidian,
@@ -125,7 +125,7 @@ impl Sub for Resources {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Path {
+pub enum Path {
     Cons(Resource, Rc<Path>),
     Empty,
 }
@@ -149,14 +149,14 @@ impl Display for Path {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct State {
+pub struct State {
     factory_target: Option<Resource>,
     robots: Resources,
     resources: Resources,
 }
 
 impl State {
-    fn new(factory_target: Option<Resource>, robots: Resources, resources: Resources) -> State {
+    pub fn new(factory_target: Option<Resource>, robots: Resources, resources: Resources) -> State {
         State {
             factory_target,
             robots,
@@ -164,7 +164,7 @@ impl State {
         }
     }
 
-    fn update<'a>(
+    pub fn update<'a>(
         &self,
         blueprint: &BluePrint,
         path: Path,

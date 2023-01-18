@@ -1,5 +1,7 @@
 mod rts;
 mod utils;
+use std::collections::HashMap;
+
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -41,5 +43,41 @@ impl WebBluePrint {
     #[wasm_bindgen]
     pub fn default() -> Self {
         WebBluePrint::new(BLUEPRINT_STR)
+    }
+}
+
+
+#[wasm_bindgen]
+pub struct WebState(rts::State, rts::Path);
+
+#[wasm_bindgen]
+impl WebState {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WebState {
+        WebState(rts::State::default(), rts::Path::Empty)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WebTime(usize, HashMap<rts::State, rts::Path>);
+
+#[wasm_bindgen]
+impl WebTime {
+
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WebTime {
+        let mut states = HashMap::default();
+        states.insert(rts::State::default(), rts::Path::Empty);
+        WebTime(0, states)
+    }
+
+    #[wasm_bindgen]
+    pub fn update(
+        &self,
+        blueprint: &WebBluePrint) -> WebTime {
+            let mut new_states = HashMap::default();
+
+            self.1.iter().for_each(|x| x.0.update(&blueprint.0, x.1.clone(), &mut new_states));
+            WebTime(self.0 + 1, new_states)
     }
 }
