@@ -15,21 +15,21 @@ let input = `Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 or
 Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.
 `;
 
-let state = { input, playing: false };
+let state = { input };
 
 let render = () => {
   let { blueprint, time } = state;
   let svg = time.to_svg(blueprint);
   content.innerHTML = svg;
+  status.innerText = `Time = ${time.tick()}`;
 };
 
 let reset = () => {
   state.blueprint = WebBluePrint.default();
   state.time = new WebTime();
-  state.playing = false;
-  playpause_button.innerText = "Play";
   render();
 };
+reset_button.onclick = reset;
 
 file_input.onchange = (ev) => {
   let input = ev.currentTarget;
@@ -44,24 +44,10 @@ file_input.onchange = (ev) => {
   reader.readAsText(input.files[0]);
 };
 
-reset_button.onclick = reset;
 step_button.onclick = () => {
   state.time = state.time.update(state.blueprint);
   render();
 };
-step10_button.onclick = () => {
-  for (let i = 0; i < 10; i++) {
-    state.grid.step();
-  }
-  render();
-};
-playpause_button.onclick = () => {
-  state.playing = !state.playing;
-  if (state.playing) {
-    playpause_button.innerText = "Pause";
-    step_button.onclick();
-  } else {
-    playpause_button.innerText = "Play";
-  }
-};
+
+
 reset();
