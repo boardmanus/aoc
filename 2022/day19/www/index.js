@@ -27,6 +27,7 @@ let render = () => {
 let reset = () => {
   state.blueprint = WebBluePrint.default();
   state.time = new WebTime();
+  bar.innerText = `${state.blueprint.to_string()}`
   render();
 };
 reset_button.onclick = reset;
