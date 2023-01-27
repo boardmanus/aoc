@@ -1,6 +1,6 @@
 mod rts;
 mod utils;
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 use svg::Document;
 
 use wasm_bindgen::prelude::*;
@@ -66,9 +66,61 @@ impl WebBluePrint {
     }
 }
 
+#[wasm_bindgen]
 pub struct WebState {
     state: rts::State,
     path: rts::Path,
+}
+
+impl WebState {
+    fn cmp(&self, other: &WebState) -> Ordering {
+        let ares = &self.state.resources.quantity;
+        let bres = &other.state.resources.quantity;
+        if ares[3] != bres[3] {
+            return ares[3].cmp(&bres[3]);
+        }
+
+        let ar = &self.state.robots.quantity;
+        let br = &other.state.robots.quantity;
+        if ar[3] != br[3] {
+            ar[3].cmp(&br[3])
+        } else if ar[2] != br[2] {
+            ar[2].cmp(&br[2])
+        } else if ar[1] != br[1] {
+            ar[1].cmp(&br[1])
+        } else {
+            ar[0].cmp(&br[0])
+        }
+    }
+
+    fn to_svg(&self, blueprint: &WebBluePrint, num_items: f32) -> impl svg::Node {
+        let res = &self.state.resources.quantity;
+        let rob = &self.state.robots.quantity;
+        let ft: String = if let Some(f) = self.state.factory_target {
+            f.to_string()
+        } else {
+            String::from("None")
+        };
+        let resources = format!(
+            "Resources({},{},{},{}), Robots({},{},{},{}), Factory({})",
+            res[0], res[1], res[2], res[3], rob[0], rob[1], rob[2], rob[3], ft
+        );
+
+        let r = rob[0] * 255 / blueprint.0.max_robots.quantity[0];
+        let g = rob[1] * 255 / blueprint.0.max_robots.quantity[1];
+        let b = rob[2] * 255 / blueprint.0.max_robots.quantity[2];
+
+        let rect = svg::node::element::Rectangle::new()
+            .set("x", 0)
+            .set("y", 0)
+            .set("width", 100.0 / num_items)
+            .set("height", 100)
+            .set("fill", format!("rgb({r}, {g}, {b})"))
+            .set("stroke", "black")
+            .set("stroke-width", "0px")
+            .add(svg::node::element::Title::new().add(svg::node::Text::new(resources)));
+        rect
+    }
 }
 
 #[wasm_bindgen]
@@ -97,7 +149,7 @@ impl WebTime {
 
         self.states
             .iter()
-            .for_each(|x| x.0.update(&blueprint.0, x.1.clone(), &mut states));
+            .for_each(|(state, path)| state.update(&blueprint.0, path.clone(), &mut states));
         WebTime {
             tick: self.tick + 1,
             states,
@@ -111,56 +163,26 @@ impl WebTime {
 
         let mut document = Document::new().set("viewBox", (0, 0, 100, 50));
         let mut x = 0.0;
-        let mut bob = self.states.iter().collect::<Vec<(_, _)>>();
-        bob.sort_by(|a, b| {
-            let ares = &a.0.resources.quantity;
-            let bres = &b.0.resources.quantity;
-            if ares[3] != bres[3] {
-                return ares[3].cmp(&bres[3]);
-            }
+        let mut bob = self
+            .states
+            .iter()
+            .map(|(state, path)| WebState {
+                state: *state,
+                path: path.clone(),
+            })
+            .collect::<Vec<_>>();
+        bob.sort_by(WebState::cmp);
 
-            let ar = &a.0.robots.quantity;
-            let br = &b.0.robots.quantity;
-            if ar[3] != br[3] {
-                ar[3].cmp(&br[3])
-            } else if ar[2] != br[2] {
-                ar[2].cmp(&br[2])
-            } else if ar[1] != br[1] {
-                ar[1].cmp(&br[1])
-            } else {
-                ar[0].cmp(&br[0])
-            }
-        });
         let num_items = bob.len() as f32;
-        document = bob.iter().fold(document, |doc, (state, path)| {
-            let res = &state.resources.quantity;
-            let rob = &state.robots.quantity;
-            let ft: String = if let Some(f) = state.factory_target {
-                f.to_string()
-            } else {
-                String::from("None")
-            };
-            let resources = format!(
-                "Resources({},{},{},{}), Robots({},{},{},{}), Factory({})",
-                res[0], res[1], res[2], res[3], rob[0], rob[1], rob[2], rob[3], ft
-            );
-            let robots = state.robots;
-            let target = format!("{:?}", state.factory_target);
-            let r = robots.quantity[0] * 255 / blueprint.0.max_robots.quantity[0];
-            let g = robots.quantity[1] * 255 / blueprint.0.max_robots.quantity[1];
-            let b = robots.quantity[2] * 255 / blueprint.0.max_robots.quantity[2];
-
-            let rect = svg::node::element::Rectangle::new()
-                .set("x", x * 100.0 / num_items)
-                .set("y", 0)
-                .set("width", 100.0 / num_items)
-                .set("height", 100)
-                .set("fill", format!("rgb({r}, {g}, {b})"))
-                .set("stroke", "black")
-                .set("stroke-width", "0px")
-                .add(svg::node::element::Title::new().add(svg::node::Text::new(resources)));
+        document = bob.iter().fold(document, |doc, ws| {
+            let g = svg::node::element::Group::new()
+                .set(
+                    "transform",
+                    format!("translate({},{})", x * 100.0 / num_items, 0),
+                )
+                .add(ws.to_svg(blueprint, num_items));
             x += 1.0;
-            doc.add(rect)
+            doc.add(g)
         });
         let svg_str = document.to_string();
         log!("{svg_str}");
