@@ -1,5 +1,6 @@
+use core::num;
 use regex::Regex;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum Colour {
@@ -7,8 +8,43 @@ enum Colour {
     Red,
     Green,
 }
+const NUM_COLOURS: usize = 3;
 
-type HandFull = HashMap<Colour, usize>;
+impl FromStr for Colour {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "blue" => Ok(Colour::Blue),
+            "red" => Ok(Colour::Red),
+            "green" => Ok(Colour::Green),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Colour {
+    fn to_str(&self) -> &str {
+        match self {
+            Colour::Blue => "blue",
+            Colour::Red => "red",
+            Colour::Green => "green",
+        }
+    }
+
+    fn to_index(&self) -> usize {
+        match self {
+            Colour::Blue => 0,
+            Colour::Red => 1,
+            Colour::Green => 2,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct HandFull {
+    num: [usize; NUM_COLOURS],
+}
 
 struct Game {
     num: usize,
@@ -26,18 +62,7 @@ fn parse_card(card: &str) -> (Colour, usize) {
         .parse::<usize>()
         .expect("Invalid number");
 
-    let colour = match captures
-        .get(2)
-        .expect("Invalid card capture")
-        .as_str()
-        .to_lowercase()
-        .as_str()
-    {
-        "blue" => Colour::Blue,
-        "red" => Colour::Red,
-        "green" => Colour::Green,
-        _ => panic!("Invalid colour"),
-    };
+    let colour = Colour::from_str(captures.get(2).expect("Invalid card capture").as_str()).unwrap();
 
     (colour, num)
 }
@@ -45,8 +70,11 @@ fn parse_card(card: &str) -> (Colour, usize) {
 fn parse_hand(hand: &str) -> HandFull {
     hand.split(',')
         .into_iter()
-        .map(|h| parse_card(h))
-        .collect::<HashMap<Colour, usize>>()
+        .fold(HandFull::default(), |mut acc, card| {
+            let (colour, num) = parse_card(card);
+            acc.num[colour.to_index()] = num;
+            acc
+        })
 }
 
 fn parse_game(line: &str) -> Game {
@@ -72,16 +100,15 @@ fn parse_game(line: &str) -> Game {
 }
 
 fn solve_part1(input: &str) -> usize {
-    let max_colours = HashMap::from([(Colour::Blue, 14), (Colour::Red, 12), (Colour::Green, 13)]);
-
+    let max_hand = HandFull { num: [14, 13, 12] };
     input
         .lines()
         .map(|line| {
             let game = parse_game(line);
-            let possible = game.hands.iter().all(|hand| {
-                hand.iter()
-                    .all(|(colour, num)| num <= max_colours.get(colour).unwrap())
-            });
+            let possible = game
+                .hands
+                .iter()
+                .all(|hand| (0..NUM_COLOURS).all(|i| hand.num[i] <= max_hand.num[i]));
 
             if possible {
                 game.num
@@ -97,16 +124,11 @@ fn solve_part2(input: &str) -> usize {
         .lines()
         .map(|line| {
             let game = parse_game(line);
-            let max_colours = game.hands.iter().fold(HashMap::new(), |mut acc, hand| {
-                for (colour, num) in hand.iter() {
-                    let current = acc.entry(colour).or_insert(0);
-                    if *current < *num {
-                        *current = *num;
-                    }
-                }
+            let max_colours = (0..NUM_COLOURS).fold(HandFull::default(), |mut acc, i| {
+                acc.num[i] = game.hands.iter().map(|hand| hand.num[i]).max().unwrap();
                 acc
             });
-            max_colours.values().product::<usize>()
+            max_colours.num.iter().product::<usize>()
         })
         .sum()
 }
@@ -146,9 +168,9 @@ mod tests {
     #[test]
     fn test_parse_hand() {
         let hand = parse_hand("1 blue, 2 red, 3 green");
-        assert_eq!(hand[&Colour::Blue], 1);
-        assert_eq!(hand[&Colour::Red], 2);
-        assert_eq!(hand[&Colour::Green], 3);
+        assert_eq!(hand.num[Colour::Blue.to_index()], 1);
+        assert_eq!(hand.num[Colour::Red.to_index()], 2);
+        assert_eq!(hand.num[Colour::Green.to_index()], 3);
     }
 
     #[test]
@@ -156,11 +178,11 @@ mod tests {
         let game = parse_game("Game 134: 1 blue, 2 red, 3 green; 6 blue, 5 red; 56 green");
         assert_eq!(game.num, 134);
         assert_eq!(game.hands.len(), 3);
-        assert_eq!(game.hands[0][&Colour::Blue], 1);
-        assert_eq!(game.hands[0][&Colour::Red], 2);
-        assert_eq!(game.hands[0][&Colour::Green], 3);
-        assert_eq!(game.hands[1][&Colour::Blue], 6);
-        assert_eq!(game.hands[1][&Colour::Red], 5);
-        assert_eq!(game.hands[2][&Colour::Green], 56);
+        assert_eq!(game.hands[0].num[Colour::Blue.to_index()], 1);
+        assert_eq!(game.hands[0].num[Colour::Red.to_index()], 2);
+        assert_eq!(game.hands[0].num[Colour::Green.to_index()], 3);
+        assert_eq!(game.hands[1].num[Colour::Blue.to_index()], 6);
+        assert_eq!(game.hands[1].num[Colour::Red.to_index()], 5);
+        assert_eq!(game.hands[2].num[Colour::Green.to_index()], 56);
     }
 }
