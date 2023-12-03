@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Cell {
-    Empty,
     Part(u64, (i64, i64)),
     Gear,
 }
@@ -17,9 +16,14 @@ struct EnginePart {
     len: usize,
 }
 
-struct Grid {
-    grid: Vec<Vec<char>>,
-    parts: Vec<EnginePart>,
+fn update_engine_map(q: &mut Vec<(i64, i64)>, num_str: &str, id: (i64, i64), em: &mut EngineMap) {
+    if !q.is_empty() {
+        let num = num_str[..q.len()].parse::<u64>().unwrap();
+        q.iter().for_each(|(x, y)| {
+            em.insert((*x, *y), Cell::Part(num, id));
+        });
+        q.clear();
+    }
 }
 
 fn fill_engine_map(mut em: EngineMap, line: (usize, &&str)) -> EngineMap {
@@ -29,32 +33,19 @@ fn fill_engine_map(mut em: EngineMap, line: (usize, &&str)) -> EngineMap {
     num_str.chars().enumerate().for_each(|(i, c)| match c {
         '0'..='9' => {
             let pos = (i as i64, line.0 as i64);
-            if q.len() == 0 {
+            if q.is_empty() {
                 num_str = &line.1[i..];
                 id = pos;
             }
             q.push(pos);
         }
-        _ => {
-            if q.len() != 0 {
-                let num = num_str[..q.len()].parse::<u64>().unwrap();
-                q.iter().for_each(|(x, y)| {
-                    em.insert((*x, *y), Cell::Part(num as u64, id));
-                });
-                q.clear();
-            }
-            if c == '*' {
-                em.insert((i as i64, line.0 as i64), Cell::Gear);
-            }
+        '*' => {
+            update_engine_map(&mut q, num_str, id, &mut em);
+            em.insert((i as i64, line.0 as i64), Cell::Gear);
         }
+        _ => update_engine_map(&mut q, num_str, id, &mut em),
     });
-    if q.len() != 0 {
-        let num = num_str[..q.len()].parse::<u64>().unwrap();
-        q.iter().for_each(|(x, y)| {
-            em.insert((*x, *y), Cell::Part(num as u64, id));
-        });
-        q.clear();
-    }
+    update_engine_map(&mut q, num_str, id, &mut em);
     em
 }
 
@@ -132,7 +123,7 @@ fn solve_part1(input: &str) -> usize {
     ep.iter()
         .filter(|e| is_near_symbol(e, &lines))
         .fold(0, |acc, e| {
-            print!("{:?}\n", e);
+            println!("{:?}", e);
             acc + e.num
         })
 }
@@ -152,7 +143,6 @@ fn print_engine_map(em: &EngineMap, w: usize, h: usize) {
     for y in 0..h {
         for x in 0..w {
             match em.get(&(x as i64, y as i64)) {
-                Some(Cell::Empty) => print!("."),
                 Some(Cell::Part(num, c)) => {
                     print!("{}", num.to_string().chars().nth(x - c.0 as usize).unwrap())
                 }
@@ -190,7 +180,7 @@ fn solve_part2(input: &str) -> u64 {
                 );
                 p
             } else {
-                if parts.len() > 0 {
+                if !parts.is_empty() {
                     println!("Found {} parts around ({}, {})", parts.len(), k.0, k.1);
                 }
                 0
