@@ -35,16 +35,6 @@ fn fill_engine_map(mut em: EngineMap, line: (usize, &&str)) -> EngineMap {
             }
             q.push(pos);
         }
-        '*' => {
-            if q.len() != 0 {
-                let num = num_str[..q.len()].parse::<u64>().unwrap();
-                q.iter().for_each(|(x, y)| {
-                    em.insert((*x, *y), Cell::Part(num as u64, id));
-                });
-                q.clear();
-            }
-            em.insert((i as i64, line.0 as i64), Cell::Gear);
-        }
         _ => {
             if q.len() != 0 {
                 let num = num_str[..q.len()].parse::<u64>().unwrap();
@@ -53,8 +43,18 @@ fn fill_engine_map(mut em: EngineMap, line: (usize, &&str)) -> EngineMap {
                 });
                 q.clear();
             }
+            if c == '*' {
+                em.insert((i as i64, line.0 as i64), Cell::Gear);
+            }
         }
     });
+    if q.len() != 0 {
+        let num = num_str[..q.len()].parse::<u64>().unwrap();
+        q.iter().for_each(|(x, y)| {
+            em.insert((*x, *y), Cell::Part(num as u64, id));
+        });
+        q.clear();
+    }
     em
 }
 
@@ -148,6 +148,22 @@ const GRID: [(i64, i64); 8] = [
     (1, 1),
 ];
 
+fn print_engine_map(em: &EngineMap, w: usize, h: usize) {
+    for y in 0..h {
+        for x in 0..w {
+            match em.get(&(x as i64, y as i64)) {
+                Some(Cell::Empty) => print!("."),
+                Some(Cell::Part(num, c)) => {
+                    print!("{}", num.to_string().chars().nth(x - c.0 as usize).unwrap())
+                }
+                Some(Cell::Gear) => print!("*"),
+                None => print!("."),
+            }
+        }
+        println!();
+    }
+}
+
 fn solve_part2(input: &str) -> u64 {
     let lines = input.lines().collect::<Vec<_>>();
 
@@ -156,6 +172,7 @@ fn solve_part2(input: &str) -> u64 {
         .enumerate()
         .fold(EngineMap::new(), fill_engine_map);
 
+    print_engine_map(&ep, lines[0].len(), lines.len());
     ep.iter()
         .filter(|(_, v)| **v == Cell::Gear)
         .map(|(k, _)| {
@@ -209,6 +226,6 @@ mod tests {
 
     #[test]
     fn test_part2_2() {
-        assert_eq!(solve_part2(TEST_INPUT_2), 467835);
+        assert_eq!(solve_part2(TEST_INPUT_2), 6756);
     }
 }
