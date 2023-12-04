@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 fn parse_line(line: &str) -> (HashSet<u8>, HashSet<u8>) {
     let ws_re = regex::Regex::new(r"\s+").unwrap();
@@ -34,8 +34,28 @@ fn solve_part1(input: &str) -> usize {
         .sum()
 }
 
-fn solve_part2(_input: &str) -> u64 {
-    0
+fn solve_part2(input: &str) -> usize {
+    let lines = input.lines();
+    let max_card = lines.count();
+    let mut card = 0;
+    let card_freqs = input
+        .lines()
+        .fold(HashMap::<usize, usize>::default(), |mut acc, line| {
+            let ticket = parse_line(line);
+            let num_matches = ticket.0.intersection(&ticket.1).count();
+            *acc.entry(card).or_insert(0) += 1;
+
+            let num_copies = *acc.get(&card).unwrap();
+            for copy in (card + 1)..max_card.min(card + num_matches + 1) {
+                *acc.entry(copy).or_insert(0) += num_copies;
+            }
+            card += 1;
+            acc
+        });
+    card_freqs.iter().fold(0, |acc, (card, count)| {
+        println!("card={}, count={count}", card + 1);
+        acc + count
+    })
 }
 
 fn main() {
@@ -60,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT_2), 467835);
+        assert_eq!(solve_part2(TEST_INPUT_2), 30);
     }
 
     #[test]
