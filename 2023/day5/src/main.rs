@@ -1,169 +1,116 @@
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_until},
-    character::complete::{line_ending, space1, u64},
-    combinator::eof,
-    multi::{many1, separated_list1},
-    sequence::{pair, separated_pair, terminated},
-    IResult,
-};
+use std::ops::Range;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+use iter_tools::Itertools;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct Data {
-    a: u64,
-    b: u64,
-    size: u64,
+    seeds: Range<u64>,
+    adjust: i64,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct Node {
-    data: Data,
-    l: Option<Box<Node>>,
-    r: Option<Box<Node>>,
-}
+impl Data {
+    fn new(seeds: Range<u64>, adjust: i64) -> Self {
+        Self { seeds, adjust }
+    }
 
-impl Node {
-    pub fn new(data: Data) -> Self {
-        Node {
-            data,
-            l: None,
-            r: None,
+    fn from_tup(t: (u64, u64, u64)) -> Self {
+        Self {
+            seeds: t.1..(t.1 + t.2),
+            adjust: (t.0 as i64) - (t.1 as i64),
         }
     }
 
-    pub fn find_data(&self, a: u64) -> Option<&Data> {
-        if a >= self.data.a && a < self.data.a + self.data.size {
-            Some(&self.data)
-        } else if a < self.data.a && self.l.is_some() {
-            self.l.as_ref().unwrap().find_data(a)
-        } else if a >= self.data.a + self.data.size && self.r.is_some() {
-            self.r.as_ref().unwrap().find_data(a)
-        } else {
-            None
-        }
-    }
-
-    pub fn find(&self, a: u64) -> u64 {
-        if let Some(data) = self.find_data(a) {
-            data.b + a - data.a
-        } else {
-            a
-        }
-    }
-    /*
-        pub fn find_range(&self, range: (u64, u64)) -> Vec<(u64, u64)> {
-            let mut a = range.0;
-            let end = a + range.1;
-            let mut res = vec![];
-            while a < end {
-                let data = self.find_data(a);
-            }
-        }
-    */
-    pub fn insert(&mut self, data: &Data) {
-        let target_node = if self.data.a < data.a && self.data.a + self.data.size <= data.a {
-            &mut self.r
-        } else if self.data.a > data.a && self.data.a >= data.a + data.size {
-            &mut self.l
-        } else {
-            panic!("Overlapping nodes: {:?} <=> {:?}", self.data, data);
-        };
-
-        match target_node {
-            &mut Some(ref mut subnode) => subnode.insert(data),
-            &mut None => *target_node = Some(Box::new(Node::new(*data))),
+    fn from_vec(v: Vec<u64>) -> Self {
+        Self {
+            seeds: v[1]..(v[1] + v[2]),
+            adjust: (v[0] as i64) - (v[1] as i64),
         }
     }
 }
 
-fn data_line(input: &str) -> IResult<&str, Data> {
+fn parse_map_range(input: &str) -> Data {
     // 2702707184 1771488746 32408643
-    let (input, values) = terminated(separated_list1(space1, u64), line_ending)(input)?;
-    Ok((
-        input,
-        Data {
-            a: values[1],
-            b: values[0],
-            size: values[2],
-        },
-    ))
+    Data::from_vec(
+        input
+            .split_whitespace()
+            .map(|s| s.parse::<u64>().unwrap())
+            .collect(),
+    )
 }
 
-fn data_tree(input: &str) -> IResult<&str, Option<Node>> {
-    let mut i = input;
-    let mut tree: Option<Node> = None;
-    while let Ok((input, data)) = data_line(i) {
-        if let Some(ref mut t) = tree {
-            t.insert(&data);
-        } else {
-            tree = Some(Node::new(data));
-        }
-        i = input;
-    }
-    Ok((i, tree))
+fn parse_map(input: &str) -> (&str, Vec<Data>) {
+    let mut lines = input.lines();
+    let name = lines.next().unwrap().split_whitespace().next().unwrap();
+    let mut v = lines.map(parse_map_range).collect::<Vec<_>>();
+    v.sort_by(|a, b| a.seeds.start.cmp(&b.seeds.start));
+    (name, v)
 }
 
-fn seeds(input: &str) -> IResult<&str, Vec<u64>> {
-    println!("Seeds input: {:?}", &input[..10]);
-    let (input, _) = tag("seeds: ")(input)?;
-    let (input, seeds) = separated_list1(tag(" "), u64)(input)?;
-    let (input, _) = line_ending(input)?;
-    Ok((input, seeds))
+fn parse_seeds(line: &str) -> Vec<u64> {
+    line.split_whitespace()
+        .skip(1)
+        .map(|s| s.parse::<u64>().unwrap())
+        .collect()
 }
 
-fn seed_ranges(input: &str) -> IResult<&str, Vec<(u64, u64)>> {
-    let (input, _) = tag("seeds: ")(input)?;
-    let (input, seeds) = separated_list1(tag(" "), separated_pair(u64, tag(" "), u64))(input)?;
-    let (input, _) = line_ending(input)?;
-    Ok((input, seeds))
+fn parse_seed_ranges(line: &str) -> Vec<Range<u64>> {
+    let mut v = line
+        .split_whitespace()
+        .skip(1)
+        .map(|s| s.parse::<u64>().unwrap())
+        .chunks(2)
+        .into_iter()
+        .map(|mut a| {
+            let val = a.next().unwrap();
+            let size = a.next().unwrap();
+            val..(val + size)
+        })
+        .collect::<Vec<_>>();
+    v.sort_by(|a, b| a.start.cmp(&b.start));
+    v
 }
 
-fn map_name(input: &str) -> IResult<&str, &str> {
-    let (input, name) = take_until(" ")(input)?;
-    let (input, _) = tag(" map:\n")(input)?;
-    Ok((input, name))
+fn parse_ranges(input: &str) -> (Vec<Range<u64>>, Vec<(&str, Vec<Data>)>) {
+    let mut groups = input.split("\n\n");
+    let seeds = parse_seed_ranges(groups.next().unwrap());
+    (seeds, groups.map(parse_map).collect())
 }
 
-fn parse_maps(input: &str) -> IResult<&str, Vec<(&str, Option<Node>)>> {
-    //let (input, _) = line_ending(input)?;
-    let (input, trees) = many1(terminated(
-        pair(map_name, data_tree),
-        alt((line_ending, eof)),
-    ))(input)?;
-    Ok((input, trees))
-}
-
-fn parse_seed_maps(input: &str) -> IResult<&str, (Vec<u64>, Vec<(&str, Option<Node>)>)> {
-    let (input, seeds) = seeds(input)?;
-    let (input, _) = line_ending(input)?;
-    let (input, res) = parse_maps(input)?;
-    Ok((input, (seeds, res)))
-}
-
-fn parse_seed_ranges_maps(
-    input: &str,
-) -> IResult<&str, (Vec<(u64, u64)>, Vec<(&str, Option<Node>)>)> {
-    let (input, seeds) = seed_ranges(input)?;
-    let (input, _) = line_ending(input)?;
-    let (input, res) = parse_maps(input)?;
-    Ok((input, (seeds, res)))
+fn parse(input: &str) -> (Vec<u64>, Vec<(&str, Vec<Data>)>) {
+    let mut groups = input.split("\n\n");
+    let seeds = parse_seeds(groups.next().unwrap());
+    (seeds, groups.map(parse_map).collect())
 }
 
 fn solve_part1(input: &str) -> u64 {
-    let (_, (seeds, trees)) = parse_seed_maps(input).expect("Failed to parse input");
+    let (seeds, maps) = parse(input);
     seeds
         .iter()
         .map(|seed| {
-            trees
-                .iter()
-                .fold(*seed, |acc, (_name, tree)| tree.as_ref().unwrap().find(acc))
+            maps.iter().fold(*seed, |acc, (name, map)| {
+                for data in map.iter() {
+                    if acc < data.seeds.start {
+                        println!("{name}: {acc} < {:?} => no mapping", data.seeds);
+                        return acc;
+                    } else if data.seeds.contains(&acc) {
+                        println!("{name}: {acc} in {:?} => {}", data.seeds, data.adjust);
+                        return (acc as i64 + data.adjust) as u64;
+                    }
+                }
+                println!(
+                    "{name}: {acc} > {:?} => no mapping",
+                    map.last().unwrap().seeds
+                );
+                acc
+            })
         })
         .min()
         .unwrap()
 }
 
 fn solve_part2(input: &str) -> u64 {
-    let (_, (seeds, trees)) = parse_seed_ranges_maps(input).expect("Failed to parse input");
+    /*
+    let (seed_ranges, maps) = parse_ranges(input);
     seeds
         .iter()
         .map(|seed_range| {
@@ -178,6 +125,8 @@ fn solve_part2(input: &str) -> u64 {
         })
         .min()
         .unwrap()
+        */
+    0
 }
 
 fn main() {
@@ -208,24 +157,16 @@ mod tests {
 
     #[test]
     fn test_parser() {
-        let (input, (seeds, trees)) = parse_seed_maps(TEST_INPUT).expect("Failed to parse input");
-        println!("Remaining input: {:?}", input);
+        let (seeds, maps) = parse(TEST_INPUT);
         assert_eq!(seeds, vec![79, 14, 55, 13]);
-        assert_eq!(trees.len(), 7);
+        assert_eq!(maps.len(), 7);
     }
 
     #[test]
-    fn test_data_line() {
+    fn test_parse_map_range() {
         assert_eq!(
-            data_line("2702707184 1771488746 32408643\n"),
-            Ok((
-                "",
-                Data {
-                    a: 2702707184,
-                    b: 1771488746,
-                    size: 32408643
-                }
-            ))
+            parse_map_range("2702707184 1771488746 32408643"),
+            Data::from_tup((2702707184, 1771488746, 32408643))
         );
     }
 }
