@@ -202,21 +202,23 @@ fn dfs(grid: &Grid, start: &Point) -> (usize, HashMap<Point, (Tile, Dir, usize)>
     (max_path, visited)
 }
 
-fn winding_number(visited: &HashMap<Point, (Tile, Dir, usize)>, pt: &Point, width: usize) -> i64 {
+fn winding_number(windings: &HashMap<Point, Dir>, pt: &Point, width: usize) -> i64 {
     let mut winding_number = 0;
+    let mut last_wind: Option<&Dir> = None;
     for x in (pt.x + 1)..(width as i64) {
         let pt = Point::new(x, pt.y);
-        if let Some(visit) = visited.get(&pt) {
-            if visit.1 == Dir::N {
-                winding_number += 1;
-            } else if visit.1 == Dir::S {
-                winding_number -= 1;
-            } else {
-                if visit.0.dirs().contains(&Dir::N) {
+        let dir = windings.get(&pt);
+        if dir != last_wind {
+            match dir {
+                Some(&Dir::N) => {
+                    last_wind = dir;
                     winding_number += 1;
-                } else if visit.0.dirs().contains(&Dir::S) {
+                }
+                Some(&Dir::S) => {
+                    last_wind = dir;
                     winding_number -= 1;
                 }
+                _ => {}
             }
         }
     }
@@ -237,21 +239,7 @@ fn print_windings(windings: &HashMap<Point, Dir>, size: &(usize, usize)) {
     }
 }
 
-fn print_visited(visited: &HashMap<Point, (Tile, Dir, usize)>, size: &(usize, usize)) {
-    for y in 0..size.1 {
-        for x in 0..size.0 {
-            let pt = Point::new(x as i64, y as i64);
-            if let Some(visit) = visited.get(&pt) {
-                print!("[{}{}]", visit.0.to_char(), visit.1.to_char());
-            } else {
-                print!("[..]");
-            }
-        }
-        println!();
-    }
-}
-
-fn w(start: &Point, grid: &HashMap<Point, Tile>) -> HashMap<Point, Dir> {
+fn winding(start: &Point, grid: &HashMap<Point, Tile>) -> HashMap<Point, Dir> {
     let mut pos = *start;
     let mut last_dir: Option<Dir> = None;
     let mut winding = HashMap::new();
@@ -264,107 +252,67 @@ fn w(start: &Point, grid: &HashMap<Point, Tile>) -> HashMap<Point, Dir> {
         let a = tile.dirs()[0];
         let b = tile.dirs()[1];
         let (pt_dir, dir) = match last_dir {
-            None => {
-                if a == Dir::N || a == Dir::S {
-                    (a, a)
-                } else {
-                    (b, b)
-                }
-            }
-            Some(Dir::N) => {
-                if a == Dir::S {
-                    (b, Dir::N)
-                } else {
+            None => match a {
+                Dir::N | Dir::S => (a, a),
+                _ => (b, b),
+            },
+            Some(Dir::N) => match a {
+                Dir::N => {
                     assert!(b == Dir::S);
-                    (a, Dir::N)
+                    (Dir::N, Dir::N)
                 }
-            }
+                _ => {
+                    assert!(a == Dir::S);
+                    (b, Dir::N)
+                }
+            },
             Some(Dir::S) => {
                 assert!(a == Dir::N);
                 (b, Dir::S)
             }
-            Some(Dir::E) => {
-                if a == Dir::N {
+            Some(Dir::E) => match a {
+                Dir::N => {
                     assert!(b == Dir::W);
-                    (Dir::S, Dir::N)
-                } else if a == Dir::S {
+                    (a, a)
+                }
+                Dir::S => {
                     assert!(b == Dir::W);
+                    (a, a)
+                }
+                _ => {
+                    assert!(a == Dir::E);
+                    assert!(b == Dir::W);
+                    (Dir::E, a)
+                }
+            },
+            Some(Dir::W) => match a {
+                Dir::N => {
+                    assert!(b == Dir::E);
+                    (Dir::N, Dir::N)
+                }
+                Dir::S => {
+                    assert!(b == Dir::E);
                     (Dir::S, Dir::S)
-                } else {
+                }
+                _ => {
+                    assert!(a == Dir::E);
                     assert!(b == Dir::W);
-                    (Dir::E, Dir::E)
+                    (Dir::W, Dir::W)
                 }
-            }
-            Some(Dir::W) => {
-                if a == Dir::N {
-                    assert!(b == Dir::E);
-                    (b, Dir::N)
-                } else if a == Dir::S {
-                    assert!(b == Dir::E);
-                    (b, Dir::S)
-                } else {
-                    assert!(b == Dir::E);
-                    (b, Dir::W)
-                }
-            }
-            _ => panic!("Invalid last dir"),
+            },
         };
         println!(
-            "{:?} => {}:{:?} {:?}",
+            "({:?}, {:?}) => {}:{:?} ({:?}, {:?})",
             pos,
+            last_dir,
             tile.to_char(),
             tile.dirs(),
+            pt_dir,
             dir
         );
         winding.insert(pos, dir);
         pos = pos + pt_dir.dir();
         last_dir = Some(pt_dir);
-    }
-
-    winding
-}
-
-fn winding(start: &Point, visited: &HashMap<Point, (Tile, Dir, usize)>) -> HashMap<Point, Dir> {
-    let mut pos = *start;
-    let mut winding = HashMap::new();
-    while !winding.contains_key(&pos) {
-        let visit = *visited.get(&pos).unwrap();
-        let count = visit.2 as i64;
-        let maybe_visit = visit
-            .0
-            .dirs()
-            .iter()
-            .filter_map(|dir| {
-                let new_pos = pos + dir.dir();
-                if let Some(visit) = visited.get(&new_pos) {
-                    Some((new_pos, visit))
-                } else {
-                    None
-                }
-            })
-            .find(|visit| {
-                if (visit.1 .2 as i64 == count + 1 || visit.1 .2 as i64 == count - 1)
-                    && !winding.contains_key(&visit.0)
-                {
-                    return true;
-                }
-                false
-            });
-        if let Some(visit) = maybe_visit {
-            println!("{:?}: {:?}", pos, visit);
-            match visit.1 {
-                (_, Dir::N, _) => winding.insert(pos, Dir::N),
-                (_, Dir::S, _) => winding.insert(pos, Dir::S),
-                (Tile::PipeNW, _, _) => winding.insert(pos, Dir::N),
-                (Tile::PipeNE, _, _) => winding.insert(pos, Dir::N),
-                (Tile::PipeSW, _, _) => winding.insert(pos, Dir::S),
-                (Tile::PipeSE, _, _) => winding.insert(pos, Dir::S),
-                _ => winding.insert(pos, visit.1 .1),
-            };
-            pos = visit.0;
-        } else {
-            break;
-        }
     }
 
     winding
@@ -377,18 +325,16 @@ fn solve_part1(input: &str) -> usize {
 
 fn solve_part2(input: &str) -> usize {
     let (start, grid, size) = parse(input);
-    let visited = dfs(&grid, &start).1;
-    print_visited(&visited, &size);
-    //    let windings: HashMap<Point, Dir> = winding(&start, &visited);
-    let windings: HashMap<Point, Dir> = w(&start, &grid);
+    let windings: HashMap<Point, Dir> = winding(&start, &grid);
     print_windings(&windings, &size);
     let mut inside_count = 0;
     let mut inside = Vec::<Point>::new();
     for w in 0..size.0 {
         for h in 0..size.1 {
             let pt = Point::new(w as i64, h as i64);
-            if visited.get(&pt).is_none() {
-                if winding_number(&visited, &pt, size.0) != 0 {
+            if windings.get(&pt).is_none() {
+                if winding_number(&windings, &pt, size.0) != 0 {
+                    println!("Inside: {:?}", pt);
                     inside_count += 1;
                     inside.push(pt);
                 }
