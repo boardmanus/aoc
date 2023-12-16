@@ -68,20 +68,25 @@ fn parse(input: &str) -> Vec<Grid> {
         .collect()
 }
 
-fn is_reflection(values: &Vec<u64>, start: usize) -> bool {
-    for i in 0..=start {
-        let j = start + 1 + i;
-        if j < values.len() && values[start - i] != values[j] {
-            return false;
-        }
-    }
-    true
+fn bits_different(a: u64, b: u64) -> u32 {
+    (a ^ b).count_ones()
 }
 
-fn find_reflection(values: &Vec<u64>) -> Option<usize> {
+fn is_reflection(values: &Vec<u64>, start: usize, allowed_dbits: u32) -> bool {
+    let mut diff = 0;
+    for i in 0..=start {
+        let j = start + 1 + i;
+        if j < values.len() {
+            diff += bits_different(values[start - i], values[j]);
+        }
+    }
+    diff == allowed_dbits
+}
+
+fn find_reflection(values: &Vec<u64>, allowed_dbits: u32) -> Option<usize> {
     for i in 0..(values.len() - 1) {
-        if values[i] == values[i + 1] {
-            if is_reflection(&values, i) {
+        if bits_different(values[i], values[i + 1]) <= allowed_dbits {
+            if is_reflection(&values, i, allowed_dbits) {
                 return Some(i);
             }
         }
@@ -89,10 +94,10 @@ fn find_reflection(values: &Vec<u64>) -> Option<usize> {
     None
 }
 
-fn reflection_value(grid: &Grid) -> usize {
-    if let Some(reflection) = find_reflection(&grid.rows) {
+fn reflection_value(grid: &Grid, allowed_dbits: u32) -> usize {
+    if let Some(reflection) = find_reflection(&grid.rows, allowed_dbits) {
         (reflection + 1) * 100
-    } else if let Some(reflection) = find_reflection(&grid.cols) {
+    } else if let Some(reflection) = find_reflection(&grid.cols, allowed_dbits) {
         reflection + 1
     } else {
         panic!("No reflection found!");
@@ -101,11 +106,12 @@ fn reflection_value(grid: &Grid) -> usize {
 
 fn solve_part1(input: &str) -> usize {
     let grids = parse(input);
-    grids.iter().map(|grid| reflection_value(grid)).sum()
+    grids.iter().map(|grid| reflection_value(grid, 0)).sum()
 }
 
-fn solve_part2(input: &str) -> u64 {
-    0
+fn solve_part2(input: &str) -> usize {
+    let grids = parse(input);
+    grids.iter().map(|grid| reflection_value(grid, 1)).sum()
 }
 
 fn main() {
@@ -131,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT_2), 467835);
+        assert_eq!(solve_part2(TEST_INPUT_2), 400);
     }
 
     #[test]
