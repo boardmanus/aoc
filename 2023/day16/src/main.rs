@@ -208,12 +208,12 @@ struct State {
 }
 
 impl State {
-    fn new(width: usize, height: usize, start_photon: Photon) -> State {
+    fn new(width: usize, height: usize) -> State {
         State {
             width,
             height,
-            photons: vec![start_photon],
-            tiles: HashMap::from([(start_photon.loc, Tile::new(&start_photon))]),
+            photons: vec![],
+            tiles: HashMap::from([]),
         }
     }
 
@@ -237,6 +237,18 @@ impl State {
                 }
             }
         }
+    }
+
+    fn energize(&mut self, start_photon: &Photon, map: &Map) -> usize {
+        self.photons.push(*start_photon);
+        self.tiles.insert(start_photon.loc, Tile::new(start_photon));
+
+        while let Some(photon) = self.photons.pop() {
+            let next_photons = photon.propagate_all(map.mirrors.get(&photon.loc));
+            self.update(next_photons.0);
+            self.update(next_photons.1);
+        }
+        self.tiles.len()
     }
 }
 
@@ -262,20 +274,35 @@ impl ToString for State {
 
 fn solve_part1(input: &str) -> usize {
     let map = Map::from_str(input).unwrap();
-    let start_photon = Photon::new(Point::new(0, 0), Dir::E);
-    let mut state = State::new(map.width, map.height, start_photon);
-
-    while let Some(photon) = state.photons.pop() {
-        let next_photons = photon.propagate_all(map.mirrors.get(&photon.loc));
-        state.update(next_photons.0);
-        state.update(next_photons.1);
-    }
-    //println!("{}", state.to_string());
-    state.tiles.len()
+    let mut state = State::new(map.width, map.height);
+    state.energize(&Photon::new(Point::new(0, 0), Dir::E), &map)
 }
 
-fn solve_part2(input: &str) -> u64 {
-    0
+fn solve_part2(input: &str) -> usize {
+    let map = Map::from_str(input).unwrap();
+
+    let start_photons = (0..map.width).fold(vec![], |mut photons, x| {
+        photons.push(Photon::new(Point::new(x as i64, 0), Dir::S));
+        photons.push(Photon::new(
+            Point::new(x as i64, map.height as i64 - 1),
+            Dir::N,
+        ));
+        photons
+    });
+    let start_photons = (0..map.height).fold(start_photons, |mut photons, y| {
+        photons.push(Photon::new(Point::new(0, y as i64), Dir::E));
+        photons.push(Photon::new(
+            Point::new(map.width as i64 - 1, y as i64),
+            Dir::W,
+        ));
+        photons
+    });
+
+    start_photons
+        .iter()
+        .map(|photon| State::new(map.width, map.height).energize(photon, &map))
+        .max()
+        .unwrap()
 }
 
 fn main() {
@@ -301,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT_2), 467835);
+        assert_eq!(solve_part2(TEST_INPUT_2), 51);
     }
 
     #[test]
