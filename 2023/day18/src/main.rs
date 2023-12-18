@@ -1,4 +1,9 @@
-use std::{collections::HashSet, num::ParseIntError, str::FromStr};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    num::ParseIntError,
+    str::FromStr,
+};
 
 #[derive(Debug)]
 enum ParseError {
@@ -18,9 +23,21 @@ impl From<ParseIntError> for ParseError {
 #[derive(Debug, PartialEq, Eq)]
 enum Dir {
     R,
+    D,
     L,
     U,
-    D,
+}
+
+impl Dir {
+    fn from_val(val: u64) -> Self {
+        match val {
+            0 => Dir::R,
+            1 => Dir::D,
+            2 => Dir::L,
+            3 => Dir::U,
+            _ => panic!("Bad dir value"),
+        }
+    }
 }
 
 impl FromStr for Dir {
@@ -37,9 +54,9 @@ impl FromStr for Dir {
     }
 }
 
-fn colour_from_str(s: &str) -> Result<u32, ParseError> {
+fn colour_from_str(s: &str) -> Result<u64, ParseError> {
     if s.len() == 9 {
-        let c = u32::from_str_radix(&s[2..s.len() - 1], 16)?;
+        let c = u64::from_str_radix(&s[2..s.len() - 1], 16)?;
         Ok(c)
     } else {
         Err(ParseError::BadColour)
@@ -49,13 +66,22 @@ fn colour_from_str(s: &str) -> Result<u32, ParseError> {
 #[derive(Debug, PartialEq, Eq)]
 struct Dig {
     dir: Dir,
-    steps: i32,
-    color: u32,
+    steps: i64,
+    color: u64,
 }
 
 impl Dig {
-    fn new(dir: Dir, steps: i32, color: u32) -> Self {
+    fn new(dir: Dir, steps: i64, color: u64) -> Self {
         Dig { dir, steps, color }
+    }
+
+    fn hack(&self) -> Self {
+        let instruction = self.color;
+        Dig {
+            dir: Dir::from_val(instruction & 0x3),
+            steps: instruction as i64 >> 4,
+            color: 0,
+        }
     }
 }
 
@@ -65,7 +91,7 @@ impl FromStr for Dig {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split_whitespace();
         let dir = Dir::from_str(parts.next().unwrap_or(""))?;
-        let steps = parts.next().unwrap_or("").parse::<i32>()?;
+        let steps = parts.next().unwrap_or("").parse::<i64>()?;
         let color = colour_from_str(parts.next().unwrap_or(""))?;
         Ok(Dig { dir, steps, color })
     }
@@ -73,15 +99,158 @@ impl FromStr for Dig {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Pos {
-    x: i32,
-    y: i32,
+    x: i64,
+    y: i64,
 }
 
 impl Pos {
     const ORIGIN: Pos = Pos { x: 0, y: 0 };
 
-    fn new(x: i32, y: i32) -> Self {
+    fn new(x: i64, y: i64) -> Self {
         Pos { x, y }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Line {
+    start: Pos,
+    end: Pos,
+}
+
+impl Line {
+    fn new(start: Pos, end: Pos) -> Self {
+        Line { start, end }
+    }
+
+    fn rev(&self) -> Line {
+        Line::new(self.end, self.start)
+    }
+}
+
+#[derive(Debug)]
+struct Lines {
+    horz: Vec<Line>,
+    vert: Vec<Line>,
+    border_count: i64,
+}
+
+impl Lines {
+    fn from(old_moves: Vec<Dig>) -> Self {
+        let mut horz: Vec<Line> = Vec::new();
+        let moves = old_moves.iter().map(|dig| dig.hack()).collect::<Vec<_>>();
+        let mut cur = Pos::ORIGIN;
+        let mut border_count = 0;
+        for dig in moves {
+            let end = match dig.dir {
+                Dir::R => Pos::new(cur.x + dig.steps, cur.y),
+                Dir::L => Pos::new(cur.x - dig.steps, cur.y),
+                Dir::U => Pos::new(cur.x, cur.y - dig.steps),
+                Dir::D => Pos::new(cur.x, cur.y + dig.steps),
+            };
+            border_count += dig.steps;
+            let line = Line::new(cur, end);
+            match dig.dir {
+                Dir::R => horz.push(line),
+                Dir::L => horz.push(line.rev()),
+                _ => (),
+            }
+            cur = end;
+        }
+        horz.sort_by(|a, b| {
+            let c = a.start.y.cmp(&b.start.y);
+            if c == Ordering::Equal {
+                a.start.x.cmp(&b.start.x)
+            } else {
+                c
+            }
+        });
+
+        let mut vert = horz.clone();
+        vert.sort_by(|a, b| {
+            let c = a.start.x.cmp(&b.start.x);
+            if c == Ordering::Equal {
+                a.start.y.cmp(&b.start.y)
+            } else {
+                c
+            }
+        });
+
+        Lines {
+            horz,
+            vert,
+            border_count,
+        }
+    }
+
+    fn count(&self) -> usize {
+        let mut dig_count = 0;
+        let mut used_segments: HashMap<i64, Vec<Line>> = Default::default();
+        let mut start_idx = 0;
+        for line in &self.horz {
+            if let Some(used) = used_segments.get(&line.start.y) {
+                if used
+                    .iter()
+                    .any(|l| l.start.x >= line.start.x && l.end.x <= line.end.x)
+                {
+                    // This line has been identified as a bottom piece - skip it
+                    println!("Skipping bottom line={:?}", line);
+                    continue;
+                }
+            }
+            if let Some(below) = self.vert[start_idx + 1..].iter().enumerate().find(|v| {
+                if line.start.x < v.1.start.x {
+                    return false;
+                }
+                if line.start.x == v.1.start.x {
+                    if line.start.y == v.1.start.y {
+                        start_idx = v.0;
+                        return false;
+                    }
+                    return true;
+                }
+                line.start.y < v.1.start.y
+                    && line.start.x >= v.1.start.x
+                    && line.start.x < v.1.end.x
+            }) {
+                let mut h = line.start.x + 1;
+                while h < line.end.x {
+                    println!("h={h}, line={:?}, below={:?}", line, below);
+                    let height = below.1.start.y - line.start.y - 1;
+                    // find the next line below the current with the lowest x
+                    let width = if let Some(next_below) = &self.vert[start_idx + 1..]
+                        .iter()
+                        .enumerate()
+                        .filter(|v| {
+                            v.1.start.y < below.1.start.y
+                                && v.1.start.x > h
+                                && v.1.start.x < line.end.x
+                        })
+                        .min_by(|a, b| {
+                            let a_x = a.1.start.x - h;
+                            let b_x = b.1.start.x - h;
+                            a_x.cmp(&b_x)
+                        }) {
+                        next_below.1.start.x - h
+                    } else {
+                        line.end.x - h
+                    };
+                    println!("area: width={width}*height={height} = {}", width * height);
+                    dig_count += width * height;
+                    used_segments
+                        .entry(below.1.start.y)
+                        .or_default()
+                        .push(Line::new(
+                            Pos::new(h, below.1.start.y),
+                            Pos::new(h + width, below.1.start.y),
+                        ));
+                    h += width;
+                }
+            } else {
+                println!("Nothing below line={:?}", line);
+            }
+        }
+
+        (dig_count + self.border_count) as usize
     }
 }
 
@@ -106,7 +275,7 @@ impl Map {
         for (y, line) in s.lines().enumerate() {
             for (x, c) in line.chars().enumerate() {
                 if c == '#' {
-                    let pos = Pos::new(x as i32, y as i32);
+                    let pos = Pos::new(x as i64, y as i64);
                     map.dig_at(&pos);
                 }
             }
@@ -242,8 +411,10 @@ fn solve_part1(input: &str) -> usize {
     holes
 }
 
-fn solve_part2(input: &str) -> u64 {
-    0
+fn solve_part2(input: &str) -> usize {
+    let moves = parse(input);
+    let lines = Lines::from(moves);
+    lines.count()
 }
 
 fn main() {
@@ -269,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT_2), 467835);
+        assert_eq!(solve_part2(TEST_INPUT_2), 952408144115);
     }
 
     #[test]
@@ -283,6 +454,20 @@ mod tests {
         let map = Map::from(moves);
         assert_eq!(map.to_string(), include_str!("test_input_boundary.txt"));
         println!("min={:?}, max={:?}", map.min, map.max);
+    }
+
+    #[test]
+    fn test_dir_hack() {
+        let dig = Dig::new(Dir::R, 6, 0x70c710);
+        assert_eq!(dig.hack(), Dig::new(Dir::R, 0x70c71, 0));
+    }
+
+    #[test]
+    fn test_lines_from() {
+        let digs = parse("R 6 (#000020)\nR 6 (#000021)\nR 6 (#000010)\nR 6 (#000013)\nR 6 (#000010)\nR 6 (#000041)\nR 6 (#000042)\nR 6 (#000053)\n");
+        let lines = Lines::from(digs);
+        println!("{:?}", lines);
+        println!("count={}", lines.count());
     }
 
     #[test]
