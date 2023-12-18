@@ -129,9 +129,8 @@ impl Line {
 
 #[derive(Debug)]
 struct Lines {
-    horz: Vec<Line>,
-    vert: Vec<Line>,
     border_count: i64,
+    points: Vec<Pos>,
 }
 
 impl Lines {
@@ -139,9 +138,11 @@ impl Lines {
         let mut horz: Vec<Line> = Vec::new();
         let moves = old_moves.iter().map(|dig| dig.hack()).collect::<Vec<_>>();
         let mut cur = Pos::ORIGIN;
+        let mut end = Pos::ORIGIN;
         let mut border_count = 0;
+        let mut points = Vec::<Pos>::new();
         for dig in moves {
-            let end = match dig.dir {
+            end = match dig.dir {
                 Dir::R => Pos::new(cur.x + dig.steps, cur.y),
                 Dir::L => Pos::new(cur.x - dig.steps, cur.y),
                 Dir::U => Pos::new(cur.x, cur.y - dig.steps),
@@ -154,103 +155,26 @@ impl Lines {
                 Dir::L => horz.push(line.rev()),
                 _ => (),
             }
+            points.push(cur);
             cur = end;
         }
-        horz.sort_by(|a, b| {
-            let c = a.start.y.cmp(&b.start.y);
-            if c == Ordering::Equal {
-                a.start.x.cmp(&b.start.x)
-            } else {
-                c
-            }
-        });
-
-        let mut vert = horz.clone();
-        vert.sort_by(|a, b| {
-            let c = a.start.x.cmp(&b.start.x);
-            if c == Ordering::Equal {
-                a.start.y.cmp(&b.start.y)
-            } else {
-                c
-            }
-        });
+        assert_eq!(end, Pos::ORIGIN);
+        points.push(Pos::ORIGIN);
 
         Lines {
-            horz,
-            vert,
             border_count,
+            points,
         }
     }
 
-    fn count(&self) -> usize {
-        let mut dig_count = 0;
-        let mut used_segments: HashMap<i64, Vec<Line>> = Default::default();
-        let mut start_idx = 0;
-        for line in &self.horz {
-            if let Some(used) = used_segments.get(&line.start.y) {
-                if used
-                    .iter()
-                    .any(|l| l.start.x >= line.start.x && l.end.x <= line.end.x)
-                {
-                    // This line has been identified as a bottom piece - skip it
-                    println!("Skipping bottom line={:?}", line);
-                    continue;
-                }
-            }
-            if let Some(below) = self.vert[start_idx + 1..].iter().enumerate().find(|v| {
-                if line.start.x < v.1.start.x {
-                    return false;
-                }
-                if line.start.x == v.1.start.x {
-                    if line.start.y == v.1.start.y {
-                        start_idx = v.0;
-                        return false;
-                    }
-                    return true;
-                }
-                line.start.y < v.1.start.y
-                    && line.start.x >= v.1.start.x
-                    && line.start.x < v.1.end.x
-            }) {
-                let mut h = line.start.x + 1;
-                while h < line.end.x {
-                    println!("h={h}, line={:?}, below={:?}", line, below);
-                    let height = below.1.start.y - line.start.y - 1;
-                    // find the next line below the current with the lowest x
-                    let width = if let Some(next_below) = &self.vert[start_idx + 1..]
-                        .iter()
-                        .enumerate()
-                        .filter(|v| {
-                            v.1.start.y < below.1.start.y
-                                && v.1.start.x > h
-                                && v.1.start.x < line.end.x
-                        })
-                        .min_by(|a, b| {
-                            let a_x = a.1.start.x - h;
-                            let b_x = b.1.start.x - h;
-                            a_x.cmp(&b_x)
-                        }) {
-                        next_below.1.start.x - h
-                    } else {
-                        line.end.x - h
-                    };
-                    println!("area: width={width}*height={height} = {}", width * height);
-                    dig_count += width * height;
-                    used_segments
-                        .entry(below.1.start.y)
-                        .or_default()
-                        .push(Line::new(
-                            Pos::new(h, below.1.start.y),
-                            Pos::new(h + width, below.1.start.y),
-                        ));
-                    h += width;
-                }
-            } else {
-                println!("Nothing below line={:?}", line);
-            }
+    fn area(&self) -> i64 {
+        let mut area = 0;
+        for i in 0..self.points.len() - 1 {
+            let p1 = self.points[i];
+            let p2 = self.points[i + 1];
+            area += p1.x * p2.y - p2.x * p1.y;
         }
-
-        (dig_count + self.border_count) as usize
+        (area + self.border_count) / 2 + 1
     }
 }
 
@@ -414,7 +338,8 @@ fn solve_part1(input: &str) -> usize {
 fn solve_part2(input: &str) -> usize {
     let moves = parse(input);
     let lines = Lines::from(moves);
-    lines.count()
+    println!("{:?}", lines.points);
+    lines.area() as usize
 }
 
 fn main() {
@@ -464,10 +389,10 @@ mod tests {
 
     #[test]
     fn test_lines_from() {
-        let digs = parse("R 6 (#000020)\nR 6 (#000021)\nR 6 (#000010)\nR 6 (#000013)\nR 6 (#000010)\nR 6 (#000041)\nR 6 (#000042)\nR 6 (#000053)\n");
+        let digs = parse("R 6 (#000040)\nR 6 (#000041)\nR 6 (#000042)\nR 6 (#000043)\n");
         let lines = Lines::from(digs);
-        println!("{:?}", lines);
-        println!("count={}", lines.count());
+        println!("{:?}", lines.points);
+        println!("count={}", lines.area());
     }
 
     #[test]
