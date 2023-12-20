@@ -231,7 +231,6 @@ fn solve_part2(input: &str) -> usize {
         }
 
         if hlmove.pos == end_pos {
-            println!("Reached end with move {:?}", hlmove);
             continue;
         }
 
@@ -250,7 +249,6 @@ fn solve_part2(input: &str) -> usize {
             .for_each(|m| {
                 if grid.in_bounds(&m.pos) {
                     if m.hdist < 4 && !grid.in_bounds(&m.pos.stepx(m.dir, 4 - m.hdist as i32)) {
-                        println!("Skipping move {:?}", m);
                     } else {
                         queue.push_back(m);
                     }
