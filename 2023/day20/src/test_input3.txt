@@ -1,0 +1,8 @@
+broadcaster -> a
+%a -> inv, con, c
+&inv -> b
+%b -> con, e
+&con -> rx
+%c -> con, d
+%d -> con
+%e -> a
