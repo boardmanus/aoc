@@ -1,4 +1,4 @@
-use std::{num::ParseIntError, str::FromStr};
+use std::{cmp::Ordering, num::ParseIntError, str::FromStr};
 
 #[derive(Debug)]
 enum ParseError {
@@ -20,6 +20,12 @@ struct Point {
     z: u32,
 }
 
+impl Point {
+    fn new(x: u32, y: u32, z: u32) -> Self {
+        Point { x, y, z }
+    }
+}
+
 impl FromStr for Point {
     type Err = ParseError;
 
@@ -32,12 +38,47 @@ impl FromStr for Point {
     }
 }
 
+fn next_id() -> u64 {
+    unsafe {
+        static mut ID: u64 = 0;
+        ID += 1;
+        ID
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Block {
+    id: u64,
     a: Point,
     b: Point,
 }
 
+impl Block {
+    fn new(id: u64, a: Point, b: Point) -> Self {
+        let id = id;
+        if a.z <= b.z {
+            Block { id, a, b }
+        } else {
+            Block { id, a: b, b: a }
+        }
+    }
+
+    fn sits_over(&self, other: &Block) -> bool {
+        other.a.x.min(other.b.x) <= self.a.x.max(self.b.x)
+            && other.a.x.max(other.b.x) >= self.a.x.min(self.b.x)
+            && other.a.y.min(other.b.y) <= self.a.y.max(self.b.y)
+            && other.a.y.max(other.b.y) >= self.a.y.min(self.b.y)
+            && other.a.z > self.a.z
+    }
+
+    fn sits_on(&self, other: &Block) -> bool {
+        other.a.x.min(other.b.x) <= self.a.x.max(self.b.x)
+            && other.a.x.max(other.b.x) >= self.a.x.min(self.b.x)
+            && other.a.y.min(other.b.y) <= self.a.y.max(self.b.y)
+            && other.a.y.max(other.b.y) >= self.a.y.min(self.b.y)
+            && other.a.z + 1 == self.a.z
+    }
+}
 impl FromStr for Block {
     type Err = ParseError;
 
@@ -47,7 +88,29 @@ impl FromStr for Block {
         let a = Point::from_str(a_str)?;
         let b_str = parts.next().ok_or(ParseError::Block)?;
         let b = Point::from_str(b_str)?;
-        Ok(Block { a, b })
+        let id = next_id();
+        Ok(Block::new(id, a, b))
+    }
+}
+
+impl PartialOrd for Block {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.a.z.cmp(&other.a.z) {
+            Ordering::Equal => match self.a.x.cmp(&other.a.x) {
+                Ordering::Equal => Some(self.a.y.cmp(&other.a.y)),
+                x => Some(x),
+            },
+            z => Some(z),
+        }
+    }
+}
+
+impl Ord for Block {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.partial_cmp(other) {
+            Some(x) => x,
+            None => Ordering::Equal,
+        }
     }
 }
 
@@ -55,6 +118,74 @@ struct Column {
     blocks: Vec<Block>,
 }
 
+impl Column {
+    fn fall(&mut self) {
+        let fall_dist = self.blocks[0].a.z;
+        self.blocks[0].a.z = 0;
+        self.blocks[0].b.z -= fall_dist;
+
+        (0..self.blocks.len()).for_each(|i| {
+            if let Some(lo) = (0..i)
+                .rev()
+                .find(|j| self.blocks[i].sits_over(&self.blocks[*j]))
+            {
+                self.blocks[i].a.z = self.blocks[lo].a.z + 1;
+                self.blocks[i].b.z -= self.blocks[lo].b.z - self.blocks[lo].a.z;
+            }
+        });
+    }
+
+    fn disintegrate(&mut self) -> usize {
+        self.fall();
+
+        self.blocks
+            .iter()
+            .enumerate()
+            .filter(|test| {
+                let (i, block) = test;
+                let lo = if let Some(lo) = &self.blocks[i + 1..]
+                    .iter()
+                    .enumerate()
+                    .find(|(_, lo_block)| lo_block.a.z == block.a.z + 1)
+                {
+                    *lo
+                } else {
+                    // nothing above
+                    return true;
+                };
+                let hi = if let Some(hi) = &self.blocks[lo.0..]
+                    .iter()
+                    .enumerate()
+                    .find(|(_, hi_block)| hi_block.a.z > block.b.z + 1)
+                {
+                    *hi
+                } else {
+                    lo
+                };
+                let lo_supp = if let Some(lo) = &self.blocks[0..*i]
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, lo_block)| lo_block.b.z < block.a.z)
+                {
+                    *lo
+                } else {
+                    *test
+                };
+                self.blocks[lo.0..=hi.0]
+                    .iter()
+                    .enumerate()
+                    .all(|(_, block)| {
+                        let num = &self.blocks[lo_supp.0..*i]
+                            .iter()
+                            .filter(|lo_block| block.sits_on(*lo_block))
+                            .count();
+                        *num > 1
+                    })
+            })
+            .count()
+    }
+}
 impl FromStr for Column {
     type Err = ParseError;
 
@@ -64,15 +195,15 @@ impl FromStr for Column {
             .map(|block| Block::from_str(block))
             .collect::<Result<Vec<Block>, _>>()?;
 
-        blocks.sort_by(|a, b| a.a.z.min(a.b.z).cmp(&b.a.z.min(b.b.z)));
+        blocks.sort_by(|a, b| a.cmp(b));
 
         Ok(Column { blocks })
     }
 }
 
 fn solve_part1(input: &str) -> usize {
-    let column = Column::from_str(input).unwrap();
-    0
+    let mut column = Column::from_str(input).unwrap();
+    column.disintegrate()
 }
 
 fn solve_part2(input: &str) -> u64 {
@@ -106,35 +237,63 @@ mod tests {
     }
 
     #[test]
+    fn test_block_sits_on() {
+        let a = Block::new(1, Point::new(1, 2, 7), Point::new(4, 5, 7));
+        assert!(!a.sits_on(&a));
+        let b = Block::new(1, Point::new(1, 2, 6), Point::new(4, 5, 6));
+        assert!(a.sits_on(&b));
+        let c = Block::new(1, Point::new(1, 2, 5), Point::new(4, 5, 5));
+        assert!(!a.sits_on(&c));
+
+        assert!(
+            Block::new(1, Point::new(1, 1, 1), Point::new(1, 3, 1)).sits_on(&Block::new(
+                2,
+                Point::new(1, 1, 0),
+                Point::new(3, 1, 0)
+            ))
+        );
+    }
+
+    #[test]
     fn test_parse_block() {
         assert_eq!(
-            Block::from_str("1,2,3~4,5,6").unwrap(),
+            Block::from_str("1,2,6~4,5,3").unwrap(),
             Block {
-                a: Point { x: 1, y: 2, z: 3 },
-                b: Point { x: 4, y: 5, z: 6 }
+                id: 1,
+                a: Point { x: 4, y: 5, z: 3 },
+                b: Point { x: 1, y: 2, z: 6 }
             }
         );
     }
 
     #[test]
-    fn test_parse_column() {
+    fn test_fall() {
+        let mut col =
+            Column::from_str("1,2,7~4,2,7\n3,3,21~3,3,21\n1,2,6~1,5,6\n1,2,8~1,2,5").unwrap();
+        col.fall();
         assert_eq!(
-            Column::from_str("1,2,7~4,5,7\n1,2,6~4,5,6\n1,2,8~1,2,5")
-                .unwrap()
-                .blocks,
+            col.blocks,
             vec![
                 Block {
-                    a: Point { x: 1, y: 2, z: 8 },
-                    b: Point { x: 1, y: 2, z: 5 }
+                    id: 2,
+                    a: Point { x: 3, y: 3, z: 0 },
+                    b: Point { x: 3, y: 3, z: 0 }
                 },
                 Block {
+                    id: 4,
+                    a: Point { x: 1, y: 2, z: 0 },
+                    b: Point { x: 1, y: 2, z: 3 },
+                },
+                Block {
+                    id: 3,
                     a: Point { x: 1, y: 2, z: 6 },
-                    b: Point { x: 4, y: 5, z: 6 }
+                    b: Point { x: 1, y: 5, z: 6 }
                 },
                 Block {
+                    id: 1,
                     a: Point { x: 1, y: 2, z: 7 },
-                    b: Point { x: 4, y: 5, z: 7 }
-                }
+                    b: Point { x: 4, y: 2, z: 7 }
+                },
             ]
         );
     }
