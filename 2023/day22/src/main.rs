@@ -68,7 +68,7 @@ impl Block {
             && other.a.x.max(other.b.x) >= self.a.x.min(self.b.x)
             && other.a.y.min(other.b.y) <= self.a.y.max(self.b.y)
             && other.a.y.max(other.b.y) >= self.a.y.min(self.b.y)
-            && other.a.z > self.a.z
+            && other.b.z < self.a.z
     }
 
     fn sits_on(&self, other: &Block) -> bool {
@@ -76,7 +76,7 @@ impl Block {
             && other.a.x.max(other.b.x) >= self.a.x.min(self.b.x)
             && other.a.y.min(other.b.y) <= self.a.y.max(self.b.y)
             && other.a.y.max(other.b.y) >= self.a.y.min(self.b.y)
-            && other.a.z + 1 == self.a.z
+            && other.b.z + 1 == self.a.z
     }
 }
 impl FromStr for Block {
@@ -96,10 +96,7 @@ impl FromStr for Block {
 impl PartialOrd for Block {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match self.a.z.cmp(&other.a.z) {
-            Ordering::Equal => match self.a.x.cmp(&other.a.x) {
-                Ordering::Equal => Some(self.a.y.cmp(&other.a.y)),
-                x => Some(x),
-            },
+            Ordering::Equal => Some(self.id.cmp(&other.id)),
             z => Some(z),
         }
     }
@@ -124,15 +121,23 @@ impl Column {
         self.blocks[0].a.z = 0;
         self.blocks[0].b.z -= fall_dist;
 
-        (0..self.blocks.len()).for_each(|i| {
+        (1..self.blocks.len()).for_each(|i| {
             if let Some(lo) = (0..i)
                 .rev()
                 .find(|j| self.blocks[i].sits_over(&self.blocks[*j]))
             {
-                self.blocks[i].a.z = self.blocks[lo].a.z + 1;
-                self.blocks[i].b.z -= self.blocks[lo].b.z - self.blocks[lo].a.z;
+                let dz = self.blocks[i].b.z - self.blocks[i].a.z;
+                self.blocks[i].a.z = self.blocks[lo].b.z + 1;
+                self.blocks[i].b.z = self.blocks[i].a.z + dz;
+            } else {
+                // No block below - land on bottom
+                let dz = self.blocks[i].a.z;
+                self.blocks[i].a.z = 0;
+                self.blocks[i].b.z -= dz;
             }
         });
+
+        self.blocks.sort();
     }
 
     fn disintegrate(&mut self) -> usize {
@@ -143,20 +148,15 @@ impl Column {
             .enumerate()
             .filter(|test| {
                 let (i, block) = test;
-                let lo = if let Some(lo) = &self.blocks[i + 1..]
+                let supported = &self.blocks[i + 1..]
                     .iter()
                     .enumerate()
-                    .find(|(_, lo_block)| lo_block.a.z == block.a.z + 1)
-                {
-                    *lo
-                } else {
-                    // nothing above
-                    return true;
-                };
+                    .filter(|(_, lo_block)| lo_block.sits_on(block));
+
                 let hi = if let Some(hi) = &self.blocks[lo.0..]
                     .iter()
                     .enumerate()
-                    .find(|(_, hi_block)| hi_block.a.z > block.b.z + 1)
+                    .find(|(_, hi_block)| hi_block.a.z > block.b.z + 2)
                 {
                     *hi
                 } else {
@@ -195,7 +195,7 @@ impl FromStr for Column {
             .map(|block| Block::from_str(block))
             .collect::<Result<Vec<Block>, _>>()?;
 
-        blocks.sort_by(|a, b| a.cmp(b));
+        blocks.sort();
 
         Ok(Column { blocks })
     }
@@ -252,6 +252,47 @@ mod tests {
                 Point::new(3, 1, 0)
             ))
         );
+        assert!(
+            Block::new(1, Point::new(1, 2, 7), Point::new(4, 2, 7)).sits_on(&Block::new(
+                2,
+                Point::new(1, 2, 6),
+                Point::new(1, 5, 6)
+            ))
+        );
+    }
+
+    #[test]
+    fn test_block_sits_over() {
+        let a = Block::new(1, Point::new(1, 2, 7), Point::new(4, 5, 7));
+        assert!(!a.sits_over(&a));
+        let b = Block::new(1, Point::new(1, 2, 6), Point::new(4, 5, 6));
+        assert!(a.sits_over(&b));
+        let c = Block::new(1, Point::new(1, 2, 5), Point::new(4, 5, 5));
+        assert!(a.sits_over(&c));
+
+        assert!(
+            Block::new(1, Point::new(1, 1, 10), Point::new(1, 3, 10)).sits_over(&Block::new(
+                2,
+                Point::new(1, 1, 0),
+                Point::new(3, 1, 0)
+            ))
+        );
+
+        assert!(
+            Block::new(1, Point::new(1, 2, 7), Point::new(4, 2, 7)).sits_over(&Block::new(
+                2,
+                Point::new(1, 2, 6),
+                Point::new(1, 5, 6)
+            ))
+        );
+
+        assert!(
+            Block::new(2, Point::new(1, 2, 6), Point::new(1, 5, 6)).sits_over(&Block::new(
+                1,
+                Point::new(1, 2, 0),
+                Point::new(1, 2, 3)
+            ))
+        );
     }
 
     #[test]
@@ -286,13 +327,42 @@ mod tests {
                 },
                 Block {
                     id: 3,
+                    a: Point { x: 1, y: 2, z: 4 },
+                    b: Point { x: 1, y: 5, z: 4 }
+                },
+                Block {
+                    id: 1,
+                    a: Point { x: 1, y: 2, z: 5 },
+                    b: Point { x: 4, y: 2, z: 5 }
+                },
+            ]
+        );
+    }
+    #[test]
+    fn test_parse() {
+        let col = Column::from_str("1,2,7~4,2,7\n3,3,21~3,3,21\n1,2,6~1,5,6\n1,2,8~1,2,5").unwrap();
+        assert_eq!(
+            col.blocks,
+            vec![
+                Block {
+                    id: 4,
+                    a: Point { x: 1, y: 2, z: 5 },
+                    b: Point { x: 1, y: 2, z: 8 }
+                },
+                Block {
+                    id: 3,
                     a: Point { x: 1, y: 2, z: 6 },
-                    b: Point { x: 1, y: 5, z: 6 }
+                    b: Point { x: 1, y: 5, z: 6 },
                 },
                 Block {
                     id: 1,
                     a: Point { x: 1, y: 2, z: 7 },
                     b: Point { x: 4, y: 2, z: 7 }
+                },
+                Block {
+                    id: 2,
+                    a: Point { x: 3, y: 3, z: 21 },
+                    b: Point { x: 3, y: 3, z: 21 }
                 },
             ]
         );
