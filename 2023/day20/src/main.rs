@@ -1,6 +1,5 @@
 use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fmt::{Display, Formatter},
     str::FromStr,
 };
@@ -8,61 +7,61 @@ use std::{
 #[derive(Debug, Clone, Copy)]
 enum ParseError {
     Module,
-    Input,
-    Output,
 }
 
 #[derive(Debug, Clone)]
 enum Module<'a> {
     Broadcaster,
-    FlipFlop(bool),
+    FlipFlop(HashSet<&'a str>, bool),
     Conjunction(HashMap<&'a str, bool>),
 }
 
 impl<'a> Module<'a> {
-    fn input(&mut self, from: &'a str, signal: bool) -> Option<bool> {
+
+    fn signal(&self, from: &'a str, s: bool) -> Option<bool> {
         match self {
-            Module::Broadcaster => Some(signal),
-            Module::FlipFlop(state) => {
-                if signal {
-                    None
-                } else {
-                    *state = !*state;
-                    Some(*state)
-                }
-            }
-            Module::Conjunction(inputs) => {
-                if let Some(input) = inputs.get_mut(from) {
-                    *input = signal;
-                    if inputs.iter().all(|input| *input.1) {
-                        Some(false)
-                    } else {
-                        Some(true)
-                    }
-                } else {
-                    None
-                }
-            }
+            Module::Broadcaster => Some(s),
+            Module::FlipFlop(_, state) =>  if s { None } else { Some(!*state) },
+            Module::Conjunction(inputs) => 
+                Some(!inputs.iter().all(|input| if *input.0 == from { s } else { *input.1 })),
         }
     }
+    fn input(&mut self, from: &'a str, signal: bool) -> Option<bool> {
+        let output = self.signal(from, signal);
+        match self {
+            Module::FlipFlop(_, state) => if output.is_some() { *state = output.unwrap() }
+            Module::Conjunction(inputs) => *inputs.get_mut(from).unwrap() = signal,
+            _ => ()
+        }
+        output
+    }
+
     fn state(&self) -> usize {
         match self {
             Module::Broadcaster => 0,
-            Module::FlipFlop(state) => (if *state { 1 } else { 0 }) << 1,
-            Module::Conjunction(ref inputs) => {
-                inputs.iter().enumerate().fold(0, |state, (i, input)| {
-                    state | if *input.1 { 1 << i } else { 0 }
-                }) << 2
-            }
+            Module::FlipFlop(_, state) => *state as usize,
+            Module::Conjunction(ref inputs) => 
+                inputs.iter().enumerate().fold(0, |state, (i, input)|
+                    state | (*input.1 as usize) << i)
         }
     }
     fn update_inputs(&mut self, name: &'a str, signal: bool) {
         match self {
             Module::Broadcaster => {}
-            Module::FlipFlop(_) => {}
+            Module::FlipFlop(ref mut inputs, _) => {
+                inputs.insert(name);
+            }
             Module::Conjunction(ref mut inputs) => {
                 inputs.insert(name, signal);
             }
+        }
+    }
+
+    fn get_inputs(&self) -> Vec<&'a str> {
+        match self {
+            Module::Broadcaster => vec![],
+            Module::FlipFlop(inputs, _) => inputs.iter().map(|x| *x).collect(),
+            Module::Conjunction(inputs) => inputs.iter().map(|x| *x.0).collect(),
         }
     }
 }
@@ -71,7 +70,7 @@ impl<'a> Display for Module<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Module::Broadcaster => write!(f, "broadcaster"),
-            Module::FlipFlop(state) => write!(f, "flipflop({})", state),
+            Module::FlipFlop(_, state) => write!(f, "flipflop({})", state),
             Module::Conjunction(ref inputs) => {
                 write!(f, "conjunction(")?;
                 inputs.iter().for_each(|input| {
@@ -88,7 +87,7 @@ impl<'a> FromStr for Module<'a> {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "b" => Ok(Module::Broadcaster),
-            "%" => Ok(Module::FlipFlop(false)),
+            "%" => Ok(Module::FlipFlop(HashSet::new(), false)),
             "&" => Ok(Module::Conjunction(HashMap::new())),
             _ => Err(ParseError::Module),
         }
@@ -160,22 +159,27 @@ fn update_inputs(nodes: Vec<Node>) -> HashMap<&str, Node> {
     node_map
 }
 
-fn push_button(push: usize, nodes: &mut HashMap<&str, Node>) -> (usize, usize) {
+fn push_button(nodes: &mut HashMap<&str, Node>) -> (usize, usize) {
     let mut lo_pulses = 0;
     let mut hi_pulses = 0;
-    let mut queue = vec![(false, "button", "roadcaster")];
-    while let Some(pulse) = queue.pop() {
+    let mut queue = VecDeque::from([(false, "button", "roadcaster")]);
+    while let Some(pulse) = queue.pop_front() {
         let (signal, from, to) = pulse;
+        println!("{from} -{}-> {to}", if signal { "high" } else { "low" });
         match signal {
             true => hi_pulses += 1,
             false => lo_pulses += 1,
         }
 
         if let Some(rcvr) = nodes.get_mut(to) {
+            if to == "lx" && signal{
+                println!("{from} => {signal} => {to}");
+            }
             let out_signal = rcvr.input(from, signal);
+
             if let Some(signal) = out_signal {
                 rcvr.outputs.iter().for_each(|output| {
-                    queue.push((signal, to, output));
+                    queue.push_back((signal, to, output));
                 });
             }
         }
@@ -184,10 +188,10 @@ fn push_button(push: usize, nodes: &mut HashMap<&str, Node>) -> (usize, usize) {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct State {
+struct State<'a> {
     last_press: usize,
-    first_match_press: HashSet<usize>,
-    repeat: Option<usize>,
+    first_match_press: Vec<usize>,
+    repeat: HashMap<Key2<'a>, usize>,
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -204,7 +208,6 @@ struct Key2<'a> {
     state: Vec<usize>,
 }
 
-
 fn keep_pushing<'a>(check_name: &'a str, nodes: &mut HashMap<&'a str, Node<'a>>) -> usize {
     let mut num_pushes = 0;
     let mut check_state = match nodes[check_name].module {
@@ -215,8 +218,8 @@ fn keep_pushing<'a>(check_name: &'a str, nodes: &mut HashMap<&'a str, Node<'a>>)
                     *name,
                     State {
                         last_press: 0,
-                        first_match_press: HashSet::new(),
-                        repeat: None,
+                        first_match_press: Default::default(),
+                        repeat: Default::default(),
                     },
                 )
             })
@@ -225,78 +228,99 @@ fn keep_pushing<'a>(check_name: &'a str, nodes: &mut HashMap<&'a str, Node<'a>>)
     };
     println!("check_state={:?}", check_state);
 
-    //let mut memory = HashMap::<Key, usize>::new();
-    let mut memory = HashMap::<Key2, usize>::new();
+    let inputs_map = check_state.iter().fold(HashMap::new(), |mut map, (name, _)| {
+        let mut input_q = nodes[name].module.get_inputs().clone();
+        let mut inputs = HashSet::from([*name]);
+        while let Some(input) = input_q.pop() { 
+            let node = &nodes[input];
+            if !inputs.contains(node.name) {
+                inputs.insert(node.name);
+                input_q.extend(node.module.get_inputs());
+            }                             
+        }
+        let mut vinputs = inputs.iter().map(|s| *s).collect::<Vec<&str>>();
+        vinputs.sort();
+        println!("inputs for {}: {:?}", name, vinputs);
+        map.insert(*name, vinputs);
+        map
+    });
 
-    while !check_state.iter().all(|s| s.1.repeat.is_some()) {
+    //let mut memory = HashMap::<Key, usize>::new();
+    let mut memory = HashMap::<Key2, Vec<usize>>::new();
+    while !check_state.iter().all(|s| !s.1.repeat.is_empty()) {
         num_pushes += 1;
 
-        let mut lo_pulses = 0;
-        let mut hi_pulses = 0;
-
-        let mut queue = vec![(false, "button", "roadcaster")];
-        while let Some(pulse) = queue.pop() {
+        // Handle all the pulses
+        //push_button(nodes);
+        let input_state = nodes.iter().map(|(name, node)| (*name, node.state())).collect::<HashMap<_, _>>();
+        let mut queue = VecDeque::from([(false, "button", "roadcaster")]);
+        while let Some(pulse) = queue.pop_front() {
             let (signal, from, to) = pulse;
-            match signal {
-                true => hi_pulses += 1,
-                false => lo_pulses += 1,
-            }
 
             if let Some(rcvr) = nodes.get_mut(to) {
                 let out_signal = rcvr.input(from, signal);
+    
                 if let Some(signal) = out_signal {
                     rcvr.outputs.iter().for_each(|output| {
-                        queue.push((signal, to, output));
+                        queue.push_back((signal, to, output));
                     });
                 }
-            }
 
-            if to == "rx" {
-                match nodes[check_name].module {
-                    Module::Conjunction(ref inputs) => {
+                let module = &nodes[check_name].module;
+                match module {
+                    Module::Conjunction(inputs) => {
+
                         inputs.iter().filter(|input| *input.1).for_each(|input| {
-                        let (last_press, d_push) = if let Some(state) = check_state.get_mut(*input.0) {
-                            let last_press = state.last_press;
-                            let d_push = num_pushes - last_press;
-                            state.last_press = num_pushes;
-                            (last_press, d_push)
-                        } else {
-                            panic!("No state for {}", *input.0);
-                        };
-                        if d_push == 0 {
-                            return;
-                        }
+                            let (_last_press, d_push) = if let Some(state) = check_state.get_mut(*input.0) {
+                                let last_press = state.last_press;
+                                let d_push = num_pushes - last_press;
+                                state.last_press = num_pushes;
+                                (last_press, d_push)
+                            } else {
+                                panic!("No state for {}", *input.0);
+                            };
+
+                            if *input.0 == "cl"  {
+                                println!("{}: pushes={}", *input.0, num_pushes);
+                            }
+                            if d_push == 0 {
+                                return;
+                            }
                         
-                        //println!(
-                        //"{} {signal} --> pulses=({lo_pulses}, {hi_pulses}), push={num_pushes}, dPush={d_push}",
-                        //*input.0);
+                            let key = Key2::<'a> {
+                                name: *input.0,
+                                state: inputs_map[input.0].iter().map(|n| input_state[n]).collect(),
+                            };
 
-                        let key = Key2::<'a> {
-                            name: *input.0,
+                            if let Some(last_pushes) = memory.get(&key) {
+                                println!("Found key: {:?}, input={}, lastPush={:?}, Push={num_pushes}", key, *input.0, last_pushes);
+                                let last_push = last_pushes.last().unwrap();
+                                if let Some(state) = check_state.get_mut(*input.0) {
+                                    if let Some(repeat) = state.repeat.get(&key) {
+                                        println!("Confirming repeat for {:?} = {}: lastPush={:?}, Push={num_pushes}", key, *repeat, last_pushes);
+                                        if num_pushes - *last_push  != *repeat {
+                                            panic!("Repeat mismatch for {}: state={:?}", key.name, state);
+                                        }
+                                        //let last_push = last_pushes.last().unwrap();
+                                    } else {
+                                        println!("Found repeat for key: {:?}, lastPush={:?}, Push={num_pushes}", key, last_pushes);
+                                        state.repeat.insert(key.clone(), num_pushes - last_push);
+                                    }
+                                    memory.get_mut(&key).unwrap().push(num_pushes);
+                                }
+                            } else {
+                                //println!("Inserting key: {:?}, Push={num_pushes}", key);
+                                memory.insert(key, vec![num_pushes]);
+                            }
 
-                            state: nodes.iter().map(|n| if *n.0 == check_name { 9999999 } else { n.1.state()}).collect(),
-                        };
-
-                        if let Some(last_push) = memory.get(&key) {
-                            println!("Found key: {:?}, input={}, lastPush={last_push}, Push={num_pushes}", key, *input.0);
                             if let Some(state) = check_state.get_mut(*input.0) {
-                                if state.repeat.is_none() {
-                                    println!("Found repeat for key: {:?}, lastPush={last_push}, Push={num_pushes}", key);
-                                    state.repeat = Some(num_pushes - *last_push - 1);
+
+                                if state.repeat.is_empty() {
+                                    state.first_match_press.push(num_pushes);
                                 }
                             }
-                        } else {
-                            //println!("Inserting key: {:?}, Push={num_pushes}", key);
-                            memory.insert(key, num_pushes);
                         }
-
-                        if let Some(state) = check_state.get_mut(*input.0) {
-
-                            if state.repeat.is_none() {
-                                state.first_match_press.insert(num_pushes);
-                            }
-                        }
-                    })},
+                    )},
                     _ => panic!("Not a conjunction"),
                 };
             }
@@ -307,23 +331,24 @@ fn keep_pushing<'a>(check_name: &'a str, nodes: &mut HashMap<&'a str, Node<'a>>)
         .iter()
         .map(|s| {
             println!("{}: {:?}", s.0, s.1);
-            s.1.repeat.unwrap()
+            *s.1.repeat.iter().last().unwrap().1
         })
         .product();
 
     let lcm = check_state.iter().fold(1, |lcm, x| {
-        let new_lcm = num_integer::lcm(lcm, x.1.repeat.unwrap());
+        let new_lcm = num_integer::lcm(lcm, *x.1.repeat.iter().last().unwrap().1);
         lcm.max(new_lcm)
     });
+
     println!("state={:?}", check_state);
 
     println!("prod={prod}, lcm={lcm}");
 
     check_state.iter().for_each(|s| {
-        println!("Offsets for {}:", s.0);
-        s.1.first_match_press
+        println!("Repeats for {}:", s.0);
+        s.1.repeat
             .iter()
-            .for_each(|p| println!("{}: {p}", s.0))
+            .for_each(|p| println!("{}: {}", s.0, p.1))
     });
     /*
     let mut index = 0;
@@ -363,8 +388,8 @@ fn keep_pushing<'a>(check_name: &'a str, nodes: &mut HashMap<&'a str, Node<'a>>)
 
 fn solve_part1(input: &str) -> usize {
     let mut nodes = parse(input);
-    let (lo, hi) = (0..1000).fold((0, 0), |sum, push| {
-        let (lo, hi) = push_button(push, &mut nodes);
+    let (lo, hi) = (0..1000).fold((0, 0), |sum, _| {
+        let (lo, hi) = push_button(&mut nodes);
         (sum.0 + lo, sum.1 + hi)
     });
     lo * hi
@@ -404,8 +429,50 @@ mod tests {
     }
 
     #[test]
+    fn test_data2() {
+        let mut nodes = parse(TEST_INPUT_2);
+
+        for i in 0..10 {
+            println!("\n{i}:");
+            let (lo, hi) = push_button(&mut nodes);
+        }
+    }
+
+    #[test]
     fn test_part2() {
-        assert_eq!(solve_part2(TEST_INPUT), 467835);
+        let mut nodes = parse(TEST_INPUT_2);
+
+        let res = keep_pushing("con", &mut nodes);
+        assert_eq!(res /*solve_part2(TEST_INPUT)*/, 467835);
+    }
+
+    #[test]
+    fn test_mapping_a_key2() {
+        let v1 = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let v2 = v1.clone();
+        let mut v3 = v1.clone();
+        v3[3] += 1;
+
+        let k = Key2 {
+            name: "test",
+            state: v1,
+        };
+        let k2 = Key2 {
+            name: "test",
+            state: v2,
+        };
+        let k3 = Key2 {
+            name: "test",
+            state: v3.clone(),
+        };
+        v3[3] -= 1;
+        let k4 = Key2 {
+            name: "test",
+            state: v3,
+        };
+        assert_eq!(k, k2);
+        assert_ne!(k, k3);
+        assert_eq!(k, k4);
     }
 
     #[test]
@@ -418,7 +485,7 @@ mod tests {
     fn test_push_button() {
         let mut nodes = parse(TEST_INPUT_3);
         (0..100).for_each(|i| {
-            push_button(i, &mut nodes);
+            push_button(&mut nodes);
         });
     }
 
