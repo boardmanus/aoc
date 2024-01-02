@@ -1,6 +1,6 @@
 use core::time;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet, VecDeque},
     io::{stdout, Stdout, Write},
     ops::Add,
     str::FromStr,
@@ -8,7 +8,7 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveDown, MoveRight, RestorePosition, SavePosition},
+    cursor::{self, MoveDown, MoveRight, MoveToColumn, RestorePosition, SavePosition},
     execute,
     style::{self, Color, Print, ResetColor, SetForegroundColor},
     QueueableCommand,
@@ -66,6 +66,12 @@ struct Grid {
     height: usize,
     data: Vec<Cell>,
 }
+const DIRECTIONS: [Pos; 4] = [
+    Pos { x: 0, y: -1 },
+    Pos { x: 0, y: 1 },
+    Pos { x: -1, y: 0 },
+    Pos { x: 1, y: 0 },
+];
 
 impl Grid {
     fn new(width: usize, height: usize, data: Vec<Cell>) -> Self {
@@ -85,12 +91,6 @@ impl Grid {
     }
 
     fn neighbours(&self, pos: &Pos, ignore_slopes: bool) -> Vec<Pos> {
-        const DIRECTIONS: [Pos; 4] = [
-            Pos { x: 0, y: -1 },
-            Pos { x: 0, y: 1 },
-            Pos { x: -1, y: 0 },
-            Pos { x: 1, y: 0 },
-        ];
         let cell = self.get(pos);
         DIRECTIONS
             .iter()
@@ -110,76 +110,234 @@ impl Grid {
             .collect()
     }
 
-    fn longest_path(&self, start: &Pos, end: &Pos, delay: u64, ignore_slopes: bool) -> Vec<Pos> {
+    fn neighbours2<'a>(
+        &'a self,
+        pos: Pos,
+        seen: &'a HashSet<Pos>,
+    ) -> impl Iterator<Item = Pos> + 'a {
+        DIRECTIONS.iter().filter_map(move |&dir| {
+            let new_pos = pos + dir;
+            if seen.contains(&new_pos) {
+                None
+            } else {
+                match self.get(&new_pos) {
+                    Some(Cell::Wall) | None => None,
+                    _ => Some(new_pos),
+                }
+            }
+        })
+    }
+
+    fn neighbours3(&self, pos: Pos, prev_pos: Option<Pos>) -> impl Iterator<Item = Pos> + '_ {
+        DIRECTIONS.iter().filter_map(move |&dir| {
+            let new_pos = pos + dir;
+            if prev_pos != None && Some(new_pos) == prev_pos {
+                None
+            } else {
+                match self.get(&new_pos) {
+                    Some(Cell::Wall) | None => None,
+                    _ => Some(new_pos),
+                }
+            }
+        })
+    }
+
+    fn longest_path(
+        &self,
+        start: &Pos,
+        end: &Pos,
+        delay: u64,
+        ignore_slopes: bool,
+    ) -> HashSet<Pos> {
         // Depth first search
         let mut stdout = stdout();
-        let mut visited: HashMap<Pos, Vec<Pos>> = HashMap::new();
-        let mut queue = vec![vec![*start]];
-        while let Some(path) = queue.pop() {
+        let mut end_path = HashSet::new();
+        let mut queue = vec![(*start, HashSet::from([*start]))];
+        while let Some((mut pos, mut path)) = queue.pop() {
             if delay > 0 {
-                self.display_path(&mut stdout, start, end, &path, delay);
-            }
-            let pos = path.last().unwrap();
-            let mut last_len = 0;
-            if let Some(longest_path) = visited.get_mut(pos) {
-                if longest_path.len() >= path.len() {
-                    continue;
-                }
-                last_len = longest_path.len();
-                *longest_path = path.clone();
-            } else {
-                visited.insert(*pos, path.clone());
+                self.display_path(start, end, &pos, &path, delay);
             }
 
-            if pos == end {
-                let pdist = last_len;
+            if pos == *end {
+                let longest_dist = end_path.len();
                 let dist = path.len();
+                if longest_dist < dist {
+                    end_path = path.clone();
+                }
                 execute!(
                     stdout,
                     SavePosition,
                     MoveRight(self.width as u16 + 1),
-                    Print(format!("Update end dist: {} => {}", pdist, dist)),
+                    Print(format!(
+                        "Update end dist: {:6} => {:6}",
+                        dist,
+                        end_path.len()
+                    )),
                     RestorePosition,
                 )
                 .unwrap();
             } else {
-                execute!(
-                    stdout,
-                    SavePosition,
-                    MoveRight(self.width as u16 + 1),
-                    MoveDown(1),
-                    Print(format!("Current dist: {}", path.len())),
-                    RestorePosition,
-                )
-                .unwrap();
+                if delay > 0 {
+                    execute!(
+                        stdout,
+                        SavePosition,
+                        MoveToColumn(self.width as u16 + 1),
+                        MoveDown(1),
+                        Print(format!("Current dist: {:6}", path.len())),
+                        MoveToColumn(self.width as u16 + 1),
+                        MoveDown(1),
+                        Print(format!("Queue length: {:6}", queue.len())),
+                        RestorePosition,
+                    )
+                    .unwrap();
+                }
             }
 
             // Add all the neighbours with updated distance
-            queue.extend(
-                self.neighbours(&pos, ignore_slopes)
-                    .iter()
-                    .filter(|&p| !path.contains(p))
-                    .map(|p| {
+            loop {
+                let neighbours = self.neighbours(&pos, ignore_slopes);
+
+                if neighbours.len() == 1 {
+                    // If there are no alternate paths, just iterate through the positions.
+                    let new_pos = neighbours[0];
+                    path.insert(new_pos);
+                    pos = new_pos;
+                } else {
+                    queue.extend(neighbours.iter().filter(|&p| !path.contains(p)).map(|p| {
                         let mut new_path = path.clone();
-                        new_path.push(*p);
-                        new_path
-                    }),
-            );
+                        new_path.insert(*p);
+                        (*p, new_path)
+                    }));
+                    break;
+                }
+            }
         }
 
-        if let Some(path) = visited.get(end) {
-            path.clone()
-        } else {
-            vec![]
-        }
+        end_path
     }
 
-    fn display_path(&self, stdout: &mut Stdout, start: &Pos, end: &Pos, path: &[Pos], delay: u64) {
-        //let mut s = String::new();
-        //s.reserve((self.width + 1) * self.height);
+    fn dfs(&self, pos: Pos, goal: Pos, seen: &mut HashSet<Pos>) -> Option<usize> {
+        // Skip over all positions with no diversions
+        let mut edge_len = 0;
+        let mut edge_pos = pos;
+        let mut edge = vec![];
+        let mut neighbours: Vec<Pos>;
+        loop {
+            if edge_pos == goal {
+                return Some(edge_len);
+            }
+            edge.push(edge_pos);
+            seen.insert(edge_pos);
+            edge_len += 1;
+            neighbours = self.neighbours2(edge_pos, &seen).collect();
+            if neighbours.len() == 1 {
+                edge_pos = neighbours[0];
+            } else {
+                break;
+            }
+        }
+
+        let longest_path = neighbours
+            .iter()
+            .filter_map(|&np| self.dfs(np, goal, seen).map(|ans| ans + edge_len))
+            .max();
+
+        // Remove all positions in the edge.
+        edge.iter().for_each(|edge_pos| _ = seen.remove(edge_pos));
+
+        longest_path
+    }
+
+    fn graph(&self, start: &Pos) -> HashMap<Pos, HashSet<(Pos, usize)>> {
+        let mut ret: HashMap<Pos, HashSet<(Pos, usize)>> = HashMap::new();
+
+        // cur point, from node, edge length, previous point
+        let mut the_stack: Vec<(Pos, Pos, usize, Option<Pos>)> =
+            vec![(start.clone(), *start, 0, None)];
+        while !the_stack.is_empty() {
+            let (cur, from, edge_len, prev) = the_stack.pop().unwrap();
+
+            let neighs = self.neighbours3(cur, prev).collect::<Vec<_>>();
+            if neighs.len() == 1 {
+                the_stack.push((
+                    neighs.first().unwrap().clone(),
+                    from,
+                    edge_len + 1,
+                    Some(cur),
+                ));
+            } else {
+                if ret.contains_key(&cur) && ret[&cur].iter().any(|e| e.0 == from) {
+                    continue;
+                }
+                let mut set2 = HashSet::new();
+                set2.insert((from, edge_len));
+                ret.entry(cur.clone())
+                    .and_modify(|v: &mut HashSet<(Pos, usize)>| {
+                        v.insert((from, edge_len));
+                    })
+                    .or_insert(set2);
+                for neigh in &neighs {
+                    the_stack.push((neigh.clone(), cur, 1, Some(cur)));
+                }
+            }
+        }
+        ret
+    }
+    fn find_path_len(
+        &self,
+        start: &Pos,
+        dest: &Pos,
+        graph: &HashMap<Pos, HashSet<(Pos, usize)>>,
+    ) -> usize {
+        let mut the_stack = vec![(vec![*dest], 0)];
+        let mut memory: HashMap<Pos, (Vec<Pos>, usize)> = HashMap::new();
+        while let Some(cur) = the_stack.pop() {
+            let head = *cur.0.last().unwrap();
+            // Start node won't have an entry
+            if !graph.contains_key(&head) {
+                continue;
+            }
+            let entry = &graph[&head];
+            // println!("Now at {:?}", cur);
+
+            for edge in entry {
+                if cur.0.contains(&edge.0) {
+                    // println!("Skipping {:?} because it's already in the path", edge.0);
+                    continue;
+                }
+                let mut tmp = cur.clone();
+                tmp.0.push(edge.0);
+                tmp.1 += edge.1;
+                if !memory.contains_key(&edge.0) || tmp.1 > memory.get(&edge.0).unwrap().1 {
+                    // if memory.contains_key(&edge.0) {
+                    //     println!("Replacing {:?} with {:?}", memory.get(&edge.0).unwrap(), tmp);
+                    // }
+                    memory.insert(edge.0, tmp.clone());
+                }
+                the_stack.push(tmp);
+            }
+            // println!("-------------------");
+        }
+        memory[start].1
+    }
+
+    fn longest_path2(&self, start: &Pos, end: &Pos) -> usize {
+        let graph = self.graph(start);
+        self.find_path_len(start, end, &graph)
+        //self.dfs(*start, *end, &mut HashSet::new()).unwrap()
+    }
+
+    fn display_path(
+        &self,
+        start: &Pos,
+        end: &Pos,
+        last_pos: &Pos,
+        path: &HashSet<Pos>,
+        delay: u64,
+    ) {
+        let mut stdout = stdout();
         stdout.queue(cursor::SavePosition).unwrap();
         stdout.queue(style::ResetColor).unwrap();
-        let last_pos = *path.last().unwrap();
         for y in 0..self.height {
             for x in 0..self.width {
                 let pos = Pos::new(x as i32, y as i32);
@@ -188,18 +346,15 @@ impl Grid {
                 if in_path {
                     stdout.queue(SetForegroundColor(Color::Green)).unwrap();
                 }
-                if pos == last_pos {
+                if pos == *last_pos {
                     stdout.queue(SetForegroundColor(Color::Red)).unwrap();
                     stdout.queue(Print("X")).unwrap();
-                    //s.push('X');
                 } else if pos == *start {
                     stdout.queue(SetForegroundColor(Color::DarkGreen)).unwrap();
                     stdout.queue(Print("S")).unwrap();
-                    //s.push('S');
                 } else if pos == *end {
                     stdout.queue(SetForegroundColor(Color::DarkBlue)).unwrap();
                     stdout.queue(Print("E")).unwrap();
-                    //s.push('E');
                 } else if in_path {
                     let cell_str = match cell {
                         Some(Cell::Ramp(Dir::Down)) => "v",
@@ -222,9 +377,7 @@ impl Grid {
                 stdout.queue(ResetColor).unwrap();
             }
             stdout.queue(Print("\n")).unwrap();
-            //s.push('\n');
         }
-        //stdout.write_all(s.as_bytes()).unwrap();
         stdout.queue(cursor::RestorePosition).unwrap();
         stdout.flush().unwrap();
         thread::sleep(time::Duration::from_millis(delay));
@@ -256,7 +409,7 @@ fn solve_part2(input: &str) -> usize {
     let grid = Grid::from_str(input).unwrap();
     let start = Pos::new(1, 0);
     let end = Pos::new(grid.width as i32 - 2, grid.height as i32 - 1);
-    grid.longest_path(&start, &end, 0, true).len() - 1
+    grid.longest_path2(&start, &end)
 }
 
 fn main() {
@@ -270,10 +423,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
-    use crossterm::{
-        cursor::{Hide, MoveDown, Show},
-        ExecutableCommand,
-    };
+    use crossterm::cursor::{Hide, MoveDown, Show};
 
     use super::*;
 
@@ -305,7 +455,7 @@ mod tests {
         let start = Pos::new(1, 0);
         let end = Pos::new(grid.width as i32 - 2, grid.height as i32 - 1);
         let path = grid.longest_path(&start, &end, 10, false);
-        grid.display_path(&mut stdout, &start, &end, &path, 1000);
+        grid.display_path(&start, &end, &end, &path, 1000);
         execute!(stdout, MoveDown(grid.height as u16), Show).unwrap();
     }
 
@@ -316,8 +466,8 @@ mod tests {
         execute!(stdout, Hide).unwrap();
         let start = Pos::new(1, 0);
         let end = Pos::new(grid.width as i32 - 2, grid.height as i32 - 1);
-        let path = grid.longest_path(&start, &end, 10, true);
-        grid.display_path(&mut stdout, &start, &end, &path, 1000);
+        let path = grid.longest_path2(&start, &end);
+        //grid.display_path(&start, &end, &end, &path, 1000);
         execute!(stdout, MoveDown(grid.height as u16), Show).unwrap();
     }
 
@@ -375,5 +525,48 @@ mod tests {
             grid.neighbours(&Pos::new(11, 3), false),
             vec![Pos::new(11, 4), Pos::new(12, 3)]
         )
+    }
+    #[test]
+    fn test_neighbours2() {
+        let grid = Grid::from_str(TEST_INPUT).unwrap();
+        let mut seen = HashSet::new();
+        assert_eq!(
+            grid.neighbours2(Pos::new(1, 0), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(1, 1)]
+        );
+        assert_eq!(
+            grid.neighbours2(Pos::new(11, 19), &seen)
+                .collect::<Vec<_>>(),
+            vec![Pos::new(11, 20), Pos::new(12, 19)]
+        );
+        assert_eq!(
+            grid.neighbours2(Pos::new(3, 5), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(3, 4), Pos::new(3, 6), Pos::new(4, 5)]
+        );
+
+        assert_eq!(
+            grid.neighbours2(Pos::new(3, 4), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(3, 3), Pos::new(3, 5)]
+        );
+        assert_eq!(
+            grid.neighbours2(Pos::new(12, 13), &seen)
+                .collect::<Vec<_>>(),
+            vec![Pos::new(11, 13), Pos::new(13, 13)]
+        );
+
+        assert_eq!(
+            grid.neighbours2(Pos::new(7, 13), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(7, 14), Pos::new(6, 13),]
+        );
+        assert_eq!(
+            grid.neighbours2(Pos::new(11, 3), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(11, 4), Pos::new(10, 3), Pos::new(12, 3)]
+        );
+
+        seen.insert(Pos::new(11, 4));
+        assert_eq!(
+            grid.neighbours2(Pos::new(11, 3), &seen).collect::<Vec<_>>(),
+            vec![Pos::new(10, 3), Pos::new(12, 3)]
+        );
     }
 }
