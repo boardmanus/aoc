@@ -68,6 +68,7 @@ dependencies = [
 name = "day25"
 version = "0.1.0"
 dependencies = [
+ "priority-queue",
  "rustworkx-core",
 ]
 
