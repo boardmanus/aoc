@@ -21,7 +21,7 @@ enum Module<'a> {
 }
 
 impl<'a> Module<'a> {
-    fn signal(&self, from: &'a str, pulse: bool) -> Option<bool> {
+    fn signal(&self, from: &'a str, pulse: bool) -> Pulse {
         match self {
             Module::Button => Some(false),
             Module::Broadcaster => Some(pulse),
@@ -39,7 +39,7 @@ impl<'a> Module<'a> {
             _ => None,
         }
     }
-    fn input(&mut self, from: &str, signal: bool) -> Option<bool> {
+    fn input(&mut self, from: &str, signal: bool) -> Pulse {
         let output = self.signal(from, signal);
         match self {
             Module::FlipFlop(state) => *state = output.unwrap_or(*state),
@@ -61,11 +61,8 @@ impl<'a> Module<'a> {
     }
 
     fn update_inputs(&mut self, name: &'a str, signal: bool) {
-        match self {
-            Module::Conjunction(ref mut inputs) => {
-                inputs.insert(name, signal);
-            }
-            _ => (),
+        if let Module::Conjunction(ref mut inputs) = self {
+            inputs.insert(name, signal);
         }
     }
 }
@@ -107,7 +104,6 @@ struct Node<'a> {
     module: RefCell<Module<'a>>,
     inputs: Vec<&'a str>,
     outputs: Vec<&'a str>, //&'a str>,
-    last_pulse: RefCell<Option<bool>>,
 }
 
 impl<'a> Node<'a> {
@@ -117,11 +113,10 @@ impl<'a> Node<'a> {
             module: RefCell::new(module),
             inputs,
             outputs,
-            last_pulse: RefCell::new(None),
         }
     }
 
-    fn input(&self, from: &str, signal: bool) -> Option<bool> {
+    fn input(&self, from: &str, signal: bool) -> Pulse {
         self.module.borrow_mut().input(from, signal)
     }
 
@@ -129,7 +124,7 @@ impl<'a> Node<'a> {
         self.module.borrow().state()
     }
 
-    fn propagate(&self, signal: Signal<'a>, queue: &mut VecDeque<Signal<'a>>) -> Option<bool> {
+    fn propagate(&self, signal: &Signal<'a>, queue: &mut VecDeque<Signal<'a>>) -> Pulse {
         let maybe_pulse = self.input(signal.from, signal.pulse);
         if let Some(pulse) = maybe_pulse {
             let from: &str = signal.to;
@@ -235,6 +230,7 @@ impl<'a> TryFrom<&'a str> for Circuit<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct PulseCount {
     lo: usize,
     hi: usize,
@@ -265,60 +261,94 @@ impl PulseCount {
     }
 }
 
+type Pulse = Option<bool>;
+
 impl<'a> Circuit<'a> {
     const BUTTON: &'static str = "button";
     const BROADCASTER: &'static str = "broadcaster";
 
-    fn push_button(&self) -> PulseCount {
+    fn push_button<F: FnMut(&Signal)>(&self, mut on_propagate: F) -> PulseCount {
         let mut pulse_count = PulseCount::new();
         let mut queue: VecDeque<Signal<'a>> =
             VecDeque::from([Signal::new(Circuit::BUTTON, Circuit::BROADCASTER, false)]);
         while let Some(signal) = queue.pop_front() {
             pulse_count += signal.pulse;
             if let Some(node) = self.nodes.get(signal.to) {
-                *node.last_pulse.borrow_mut() = node.propagate(signal, &mut queue);
+                node.propagate(&signal, &mut queue);
+                on_propagate(&signal);
             }
         }
         pulse_count
     }
 
-    fn keep_pushing(&mut self, conjunction: &'a str) -> PulseCount {
-        let mut pulse_count = PulseCount::new();
-        let inputs = self.nodes[conjunction]
-            .inputs
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
-        //while inputs.iter().any(|x| !x) {
-        for i in 0..1000 {
-            pulse_count = self.push_button();
-            if inputs
+    fn keep_pushing(&self, conjunction_name: &'a str) -> Vec<usize> {
+        let conjunction = &self.nodes[conjunction_name];
+        assert!(matches!(
+            *conjunction.module.borrow(),
+            Module::Conjunction(_)
+        ));
+
+        // Keep a map of cycles where a push has resulted in a hi-pulse from an input
+        let mut inputs: HashMap<_, Vec<_>> =
+            conjunction
+                .inputs
                 .iter()
-                .all(|&input| *self.nodes[input].last_pulse.borrow() == Some(true))
-            {
-                println!("{}: {}", i, self.nodes[conjunction]);
-            }
+                .fold(HashMap::new(), |mut map, input| {
+                    map.insert(*input, vec![]);
+                    map
+                });
+
+        // Keep going until at least n cycles have been found for each input
+        let mut push_count: usize = 0;
+        while inputs.iter().any(|(_, push_counts)| push_counts.len() < 10) {
+            push_count += 1;
+            self.push_button(|signal| {
+                if signal.pulse {
+                    if let Some(input) = inputs.get_mut(signal.from) {
+                        // Just got a hi-pulse to an input - record it.
+                        input.push(push_count);
+                        let state = self.nodes[signal.from].state();
+                        println!("{signal}: {push_count}, state={state}",);
+                    }
+                }
+            });
         }
 
-        pulse_count
+        // Sanity check the cycles found
+        inputs.iter().for_each(|(node, push_counts)| {
+            let dp = (1..push_counts.len())
+                .map(|i| push_counts[i] - push_counts[i - 1])
+                .collect::<Vec<_>>();
+            println!("{node}: {dp:?}");
+            // The cycle should be the same as the first occurance
+            //assert_eq!(dp[0], push_counts[0]);
+            // All cycles should be the same
+            //assert!(dp.iter().all(|&d| d == push_counts[0]));
+        });
+
+        // Return the cycles for each input node to the conjunction
+        inputs.values().map(|counts| counts[0]).collect()
     }
 }
 
 fn solve_part1(input: &str) -> usize {
-    let mut circuit = Circuit::try_from(input).unwrap();
-    let pulse_count = (0..1000).fold(PulseCount::new(), |sum, _| sum + circuit.push_button());
+    let circuit = Circuit::try_from(input).unwrap();
+    let pulse_count = (0..1000).fold(PulseCount::new(), |sum, _| {
+        sum + circuit.push_button(|_| ())
+    });
     pulse_count.lo * pulse_count.hi
 }
 
 fn solve_part2(input: &str) -> usize {
-    let mut _circuit = Circuit::try_from(input).unwrap();
-
-    //keep_pushing("lx", &mut nodes)
-    0
+    let circuit = Circuit::try_from(input).unwrap();
+    let conjunction = circuit.nodes["rx"].inputs[0];
+    let cycles = circuit.keep_pushing(conjunction);
+    cycles.iter().product()
 }
 
+const INPUT: &str = include_str!("input.txt");
+
 fn main() {
-    const INPUT: &str = include_str!("input.txt");
     let part1 = solve_part1(INPUT);
     println!("Part1: {part1}");
     let part2 = solve_part2(INPUT);
@@ -346,36 +376,44 @@ mod tests {
 
     #[test]
     fn test_data2() {
-        let mut circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
+        let circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
 
         for i in 0..10 {
-            println!("\n{i}:");
-            let pulse_count = circuit.push_button();
+            let pulse_count = circuit.push_button(|_| ());
+            println!("{i}: {pulse_count:?}");
         }
     }
 
     #[test]
-    fn test_part2() {
-        let mut circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
+    fn test_part2_2() {
+        let circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
         let conjunction = circuit.nodes["output"].inputs[0];
+        let cycles = circuit.keep_pushing(conjunction);
+        println!("cycles={:?}", cycles);
+    }
 
-        let res = circuit.keep_pushing(conjunction);
-        //assert_eq!(res /*solve_part2(TEST_INPUT)*/, 467835);
+    #[test]
+    fn test_part2_3() {
+        let circuit = Circuit::try_from(TEST_INPUT_3).unwrap();
+        let conjunction = circuit.nodes["rx"].inputs[0];
+        let cycles = circuit.keep_pushing(conjunction);
+        println!("cycles={:?}", cycles);
     }
 
     #[test]
     fn test_push_button() {
-        let mut circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
-        (0..100).for_each(|i| {
-            circuit.push_button();
+        let circuit = Circuit::try_from(TEST_INPUT_2).unwrap();
+        (0..100).for_each(|_| {
+            circuit.push_button(|_| ());
         });
     }
 
     #[test]
     fn test_parse() {
-        let mut circuit = Circuit::try_from(TEST_INPUT).unwrap();
-        assert_eq!(circuit.nodes.len(), 5);
-        assert_eq!(circuit.nodes["roadcaster"].outputs, vec!["a", "b", "c"]);
+        let circuit = Circuit::try_from(TEST_INPUT).unwrap();
+        assert_eq!(circuit.nodes.len(), 6);
+        assert_eq!(circuit.nodes["button"].outputs, vec!["broadcaster"]);
+        assert_eq!(circuit.nodes["broadcaster"].outputs, vec!["a", "b", "c"]);
         assert_eq!(circuit.nodes["a"].outputs, vec!["b"]);
         //assert_eq!(nodes["b"].inputs, vec![]);
         assert_eq!(circuit.nodes["b"].outputs, vec!["c"]);
