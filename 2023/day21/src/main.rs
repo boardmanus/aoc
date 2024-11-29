@@ -1,139 +1,51 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Add,
-    str::FromStr,
-};
+use std::{collections::HashSet, str::FromStr, vec};
 
-use pathfinding::matrix::Matrix;
+use euclid::{Box2D, Point2D, Size2D, Vector2D};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Point {
-    x: i64,
-    y: i64,
-}
+enum Steps {}
 
-impl Point {
-    const DIRS: [Point; 4] = [
-        Point { x: 0, y: 1 },
-        Point { x: 0, y: -1 },
-        Point { x: 1, y: 0 },
-        Point { x: -1, y: 0 },
-    ];
+type Point = Point2D<i64, Steps>;
+type Vector = Vector2D<i64, Steps>;
 
-    fn new(x: i64, y: i64) -> Self {
-        Point { x, y }
-    }
-
-    fn normalize(&self, width: usize, height: usize) -> (usize, usize) {
-        (
-            self.x.rem_euclid(width as i64) as usize,
-            self.y.rem_euclid(height as i64) as usize,
-        )
-    }
-}
-
-impl Add for Point {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self {
-        Point::new(self.x + rhs.x, self.y + rhs.y)
-    }
-}
-
-impl Add for &Point {
-    type Output = Point;
-    fn add(self, rhs: Self) -> Point {
-        Point::new(self.x + rhs.x, self.y + rhs.y)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Row {
-    rocks: [u64; 3],
-}
-
-impl Row {
-    const EMPTY: Self = Row { rocks: [0; 3] };
-
-    fn has_rock(&self, x: usize) -> bool {
-        let (i, j) = (x / 64, x % 64);
-        self.rocks[i] & (1 << j) != 0
-    }
-
-    fn add_rock(&mut self, x: usize) {
-        let (i, j) = (x / 64, x % 64);
-        self.rocks[i] |= 1 << j;
-    }
-
-    fn clr_rock(&mut self, x: usize) {
-        let (i, j) = (x / 64, x % 64);
-        self.rocks[i] &= !(1 << j);
-    }
-}
-
-struct Rocks2 {
-    width: usize,
-    height: usize,
-    rows: Vec<Row>,
-}
-
-impl Rocks2 {
-    fn new(width: usize, height: usize) -> Self {
-        Rocks2 {
-            width,
-            height,
-            rows: vec![Row::EMPTY; height],
-        }
-    }
-
-    fn has_rock(&self, p: &Point) -> bool {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.rows[y].has_rock(x)
-    }
-
-    fn add_rock(&mut self, p: &Point) {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.rows[y].add_rock(x)
-    }
-
-    fn clr_rock(&mut self, p: &Point) {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.rows[y].clr_rock(x)
-    }
-}
+const DIRS: [Vector; 4] = [
+    Vector::new(0, 1),
+    Vector::new(0, -1),
+    Vector::new(1, 0),
+    Vector::new(-1, 0),
+];
 
 struct Rocks {
-    width: usize,
-    height: usize,
+    bounds: Box2D<i64, Steps>,
     locs: HashSet<Point>,
 }
 
 impl Rocks {
     fn new(width: usize, height: usize) -> Self {
         Rocks {
-            width,
-            height,
+            bounds: Box2D::from(Size2D::new(width as i64, height as i64)),
             locs: Default::default(),
         }
     }
 
     fn has_rock(&self, p: &Point) -> bool {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.locs.contains(&Point::new(x as i64, y as i64))
+        if self.bounds.contains(*p) {
+            self.locs.contains(&Point::new(p.x, p.y))
+        } else {
+            false
+        }
     }
 
     fn add_rock(&mut self, p: &Point) {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.locs.insert(Point::new(x as i64, y as i64));
+        if self.bounds.contains(*p) {
+            self.locs.insert(*p);
+        }
     }
 
     fn clr_rock(&mut self, p: &Point) {
-        let (x, y) = p.normalize(self.width, self.height);
-        self.locs.remove(&Point::new(x as i64, y as i64));
+        if self.bounds.contains(*p) {
+            self.locs.remove(p);
+        }
     }
-}
-
-struct Walk {
-    rows: Vec<Row>,
 }
 
 struct Grid {
@@ -146,11 +58,14 @@ impl Grid {
         self.rocks.has_rock(p)
     }
 
-    fn walk(&self, from: &HashSet<Point>) -> HashSet<Point> {
+    fn walk(&self, from: &HashSet<Point>, infinite: bool) -> HashSet<Point> {
         let mut to = HashSet::new();
         for p in from {
-            for d in &Point::DIRS {
-                let p = p + d;
+            for d in &DIRS {
+                let mut p = *p + *d;
+                if infinite {
+                    p = p.rem_euclid(&self.rocks.bounds.size());
+                }
                 if !self.has_rock(&p) {
                     to.insert(p);
                 }
@@ -159,77 +74,70 @@ impl Grid {
         to
     }
 
-    fn stroll(&self, steps: usize) -> usize {
-        let mut ys = vec![];
-        let width = self.rocks.width;
-        /*
-                (0..steps)
-                    .fold(HashSet::from([self.start]), |locs, i| self.walk(&locs))
-                    .len()
-        */
-        let mut reachable = HashSet::from([self.start]);
-
-        /*
-        let mut checked: HashSet<Point> = HashSet::from([self.start]);
-        let mut from = vec![self.start];
-        let mut to = vec![];
+    fn walk2(&self, start: &Point, steps: usize, infinite: bool) -> HashSet<Point> {
         let parity = steps & 1;
-        */
-        for i in 0..steps {
-            /*
-            for p in from.iter() {
-                if (i & 1) != parity {
-                    reachable.insert(*p);
-                }
-                for d in &Point::DIRS {
-                    let p = p + d;
-                    if !self.has_rock(&p) {
-                        if checked.insert(p) {
-                            to.push(p);
+        let mut to = if parity == 0 {
+            HashSet::from([*start])
+        } else {
+            HashSet::new()
+        };
+        let mut seen = HashSet::from([*start]);
+        let mut q = vec![*start];
+        for step in 1..=steps {
+            let mut last_q: Vec<_> = vec![];
+            std::mem::swap(&mut last_q, &mut q);
+            for p in last_q {
+                for d in &DIRS {
+                    let p = p + *d;
+                    let rock = if infinite {
+                        self.has_rock(&p.rem_euclid(&self.rocks.bounds.size()))
+                    } else {
+                        self.has_rock(&p)
+                    };
+
+                    if !rock && !seen.contains(&p) {
+                        seen.insert(p);
+                        if step & 1 == parity {
+                            to.insert(p.clone());
                         }
+                        q.push(p);
                     }
                 }
             }
-            from.clear();
-            std::mem::swap(&mut from, &mut to);
-            */
+        }
+        to
+    }
 
+    fn stroll(&self, start: &Point, steps: usize, infinite: bool) -> usize {
+        let mut reachable = HashSet::from([*start]);
+
+        for _ in 0..steps {
             for p in reachable.drain().collect::<Vec<_>>() {
-                Point::DIRS
-                    .iter()
-                    .map(|d| p + *d)
-                    .filter(|p| !self.has_rock(p))
-                    .for_each(|p| _ = reachable.insert(p));
-            }
-
-            if (i + 1) % width == width / 2 {
-                ys.push(reachable.len());
-                if let &[y0, y1, y2] = &ys[..] {
-                    println!("ys={:?}", ys);
-                    let x = (steps - width / 2) / width;
-                    return (x * x * (y0 + y2 - 2 * y1) + x * (4 * y1 - 3 * y0 - y2) + 2 * y0) / 2;
-                }
+                reachable.extend(DIRS.iter().map(|d| p + *d).filter(|p| {
+                    if infinite {
+                        !self.has_rock(&p.rem_euclid(&self.rocks.bounds.size()))
+                    } else {
+                        !self.has_rock(p)
+                    }
+                }));
             }
         }
-        //reachable.extend(from.iter());
         reachable.len()
     }
 
     // Find the number of walkable points for and odd or even fill.
-    fn fill_count(&self) -> (usize, usize) {
+    fn filled_count(&self) -> (usize, usize) {
         let mut even = 0;
         let mut odd = 0;
-        for y in 0..self.rocks.height {
-            for x in 0..self.rocks.width {
+        for y in 0..self.rocks.bounds.height() {
+            for x in 0..self.rocks.bounds.width() {
                 let p = Point::new(x as i64, y as i64);
                 if self.has_rock(&p) {
                     continue;
                 }
-                match (x % 2, y % 2) {
-                    (0, 0) => even += 1,
-                    (1, 1) => even += 1,
-                    (0, 1) => odd += 1,
-                    (1, 0) => odd += 1,
+                match (x + y) & 1 {
+                    0 => even += 1,
+                    1 => odd += 1,
                     _ => unreachable!(),
                 }
             }
@@ -237,84 +145,69 @@ impl Grid {
         (even, odd)
     }
 
-    fn min_max_walk(&self, start: &Point, steps: usize) -> (usize, usize) {
-        // Assumptions about the start location, and size of grid.
-        assert_eq!(start.x as usize, self.rocks.width / 2);
-        assert_eq!(start.y as usize, self.rocks.height / 2);
-        assert_eq!(self.rocks.width, self.rocks.height);
-        assert!(self.rocks.width % 2 == 1);
-
-        // Determine the number of locations in a filled grid for odd and even cases.
-        let (odd, even) = self.fill_count();
-
-        // Find the number of grids that can be filled.
-        let max_grid_width = (((steps + self.rocks.width / 2) / self.rocks.width) * 2 + 1) as i64;
-        assert!(max_grid_width % 2 == 1);
-
-        let radius = max_grid_width / 2;
-        let (mut even_grids, mut odd_grids) = if radius % 2 == 0 {
-            ((radius + 1) * (radius + 1), radius * radius)
-        } else {
-            (radius * radius, (radius + 1) * (radius + 1))
-        };
-
-        // We're on an odd step, so swap around the even and odd grids.
-        if steps % 1 == 1 {
-            let grid = even_grids;
-            even_grids = odd_grids;
-            odd_grids = grid;
-        }
-
-        let offset = steps % self.rocks.width;
-        println!("Steps={steps}, Radius={radius}, Offset={offset}, EvenGrids={even_grids}, OddGrids={odd_grids}");
-
-        (0, (even_grids as usize * even + odd_grids as usize * odd))
-    }
-
     fn guess_walk(&self, steps: usize) -> usize {
-        let small_stroll = 3 * self.rocks.width + steps % self.rocks.width;
-        if steps <= small_stroll {
-            return self.stroll(steps);
-        }
+        let steps = steps as i64;
+        // Assumptions about the start location, and size of grid.
+        // 1. Start in the middle
+        let width = self.rocks.bounds.width();
+        let height = self.rocks.bounds.height();
+        assert_eq!(self.start.x, width / 2);
+        assert_eq!(self.start.y, height / 2);
+        // 2. Grid width/height the same
+        assert_eq!(width, height);
+        // 3. Grid width is odd.
+        //    Grids alternate between odd and even.
+        assert_eq!(width & 1, 1);
+        // 4. Steps is a muliple of the width (we go right to an edge)
+        //    The step pattern forms a diamond shape with all the interior
+        //    completely filled, and the outside missing a few bits.
+        assert_eq!((steps - width / 2) % width, 0);
 
-        // Create a template of strolling that contains all the possible grid geometries
-        // for this step cycle.
-        let locs = self.stroll(small_stroll);
+        // For an odd or even fill, the number of squares froms a diamond shape
+        // checkerboard. The number of grids contained is the width squared.
+        // However, the grids on the border, have bits of the corners missing,
+        // or extra. These extra fill corners can be moved in to the missing
+        // corners. After moving, each edge has one corner missing. Taking these
+        // corners from one of apex pieces leaves n*n-1 grids filled, plus a
+        // single grid filled to the edges.
+        //  ----
+        // | /\ |
+        // |<  >|
+        // | \/ |
+        //  ----
+        let grids_across = (steps - width / 2) / width;
+        let num_odd_grids = (grids_across + 1) * (grids_across + 1);
+        let num_even_grids = grids_across * grids_across;
 
-        // Find the number of grids that can be filled.
-        let max_grid_width = (((steps + self.rocks.width / 2) / self.rocks.width) * 2 + 1) as i64;
-        assert!(max_grid_width % 2 == 1);
-        let radius = max_grid_width / 2;
+        // A filled grid, in the odd positioning has the following has the following
+        // walkable plots.
+        let grid_plots = self.filled_count();
 
-        // Determine the number of locations in a filled grid for odd and even cases.
-        let (odd, even) = self.fill_count();
-        let (mut even_grids, mut odd_grids) = if radius % 2 == 0 {
-            ((radius + 1) * (radius + 1), radius * radius)
-        } else {
-            (radius * radius, (radius + 1) * (radius + 1))
-        };
+        // The number of walkable in the remaining partial is strolling to the edge
+        let single_grid = self.stroll(&self.start, (width / 2) as usize, false);
 
-        // We're on an odd step, so swap around the even and odd grids.
-        if steps % 1 == 1 {
-            let grid = even_grids;
-            even_grids = odd_grids;
-            odd_grids = grid;
-        }
+        println!(
+            "GridsAcross={}, NumFilledGrids=({}, {}), OddGridPlots={:?}, SingleGrid={}",
+            grids_across, num_odd_grids, num_even_grids, grid_plots, single_grid
+        );
 
-        let filled_count = odd * odd_grids as usize + even * even_grids as usize;
-
-        // Starting from the top, rotate around the template to fill in the partial grids.
-        //let mut north_count =
-
-        0
+        //let tl = self.stroll(&)
+        let num_visited = num_even_grids * grid_plots.1 as i64
+            + num_odd_grids * grid_plots.0 as i64
+            + single_grid as i64;
+        println!("NumVisited={}", num_visited);
+        num_visited as usize
     }
 
     fn print(&self, walk: &HashSet<Point>, steps: usize) {
-        let steps = ((steps / self.rocks.width) * self.rocks.width + self.rocks.width / 2) as i64;
+        let steps = steps as i64;
+        let width = self.rocks.bounds.width();
+        let height = self.rocks.bounds.height();
+        let steps = ((steps / width) * width + width / 2);
         for y in (self.start.y - steps)..(self.start.y + steps + 1) {
-            if y % self.rocks.height as i64 == 0 {
+            if y % height == 0 {
                 ((self.start.x - steps)..(self.start.x + steps + 1)).for_each(|x| {
-                    if x % self.rocks.width as i64 == 0 {
+                    if x % width == 0 {
                         print!("+");
                     }
                     print!("-")
@@ -322,16 +215,20 @@ impl Grid {
                 println!();
             }
             for x in (self.start.x - steps)..(self.start.x + steps + 1) {
-                if x % self.rocks.width as i64 == 0 {
+                if x % width == 0 {
                     print!("|");
                 }
-                let p = Point::new(x as i64, y as i64);
+                let p = Point::new(x as i64, y as i64).rem_euclid(&self.rocks.bounds.size());
                 if p == self.start {
                     print!("S");
                 } else if self.has_rock(&p) {
                     print!("#");
                 } else if walk.contains(&p) {
-                    print!("O");
+                    if p.x & 1 == p.y & 1 {
+                        print!("E");
+                    } else {
+                        print!("O");
+                    }
                 } else {
                     print!(".");
                 }
@@ -367,16 +264,18 @@ impl FromStr for Grid {
 
 fn solve_part1(input: &str) -> usize {
     let grid = Grid::from_str(input).unwrap();
-    grid.stroll(64)
+    grid.stroll(&grid.start, 64, false)
 }
 
 fn solve_part2(input: &str) -> usize {
     let grid = Grid::from_str(input).unwrap();
-    grid.stroll(26501365)
+    //grid.stroll(26501365)
+    grid.guess_walk(26501365)
 }
 
+const INPUT: &str = include_str!("input.txt");
+
 fn main() {
-    const INPUT: &str = include_str!("input.txt");
     let part1 = solve_part1(INPUT);
     println!("Part1: {part1}");
     let part2 = solve_part2(INPUT);
@@ -384,7 +283,7 @@ fn main() {
 }
 
 #[cfg(test)]
-mod tests {
+mod test_main {
 
     use super::*;
 
@@ -393,95 +292,146 @@ mod tests {
     #[test]
     fn test_part1() {
         let grid: Grid = Grid::from_str(TEST_INPUT).unwrap();
-        assert_eq!(grid.stroll(6), 16);
+        assert_eq!(grid.stroll(&grid.start, 6, false), 16);
+        let w2 = grid.walk2(&grid.start, 6, false);
+        grid.print(&w2, (grid.rocks.bounds.width() / 2) as usize);
+        assert_eq!(w2.len(), 16);
     }
 
     #[test]
     fn test_part2_input() {
         const INPUT: &str = include_str!("input.txt");
         let grid: Grid = Grid::from_str(INPUT).unwrap();
-        let res = grid.stroll(grid.rocks.width / 2);
+        let width = grid.rocks.bounds.width();
+        let res = grid.stroll(&grid.start, (width / 2) as usize, false);
         let steps = 26501365;
         println!("Reachable={}", res);
         println!(
             "Steps={steps}, steps-width/2={}, steps-width/2 % width={}",
-            steps - grid.rocks.width / 2,
-            (steps - grid.rocks.width / 2) % grid.rocks.width
+            steps - width / 2,
+            (steps - width / 2) % width
         );
     }
 
     #[test]
     fn test_fill_count() {
-        let grid: Grid = Grid::from_str(TEST_INPUT).unwrap();
-        let counts = grid.fill_count();
+        let grid: Grid = Grid::from_str(INPUT).unwrap();
+        let counts = grid.filled_count();
         println!("Fill Count = {:?}", counts);
         assert_eq!(
             counts.0 + counts.1,
-            grid.rocks.width * grid.rocks.height - grid.rocks.locs.len()
+            (grid.rocks.bounds.width() * grid.rocks.bounds.height()) as usize
+                - grid.rocks.locs.len()
         )
     }
 
     #[test]
-    fn test_min_max_walk() {
-        let grid: Grid = Grid::from_str(TEST_INPUT).unwrap();
-        let steps = 6;
-        let min_max = grid.min_max_walk(&grid.start, steps);
-        println!("MinMax({steps}) = {:?}", min_max);
-        let steps = 10;
-        let min_max = grid.min_max_walk(&grid.start, steps);
-        println!("MinMax({steps}) = {:?}", min_max);
-        let steps = 50;
-        let min_max = grid.min_max_walk(&grid.start, steps);
-        println!("MinMax({steps}) = {:?}", min_max);
-        let steps = 100;
-        let min_max = grid.min_max_walk(&grid.start, steps);
-        println!("MinMax({steps}) = {:?}", min_max);
+    fn test_input_data() {
+        let grid = Grid::from_str(INPUT).unwrap();
+        let steps = 26501365;
+        let width: i64 = grid.rocks.bounds.width();
 
-        let steps = 16733044;
-        let min_max = grid.min_max_walk(&grid.start, steps);
-        println!("MinMax({steps}) = {:?}", min_max);
+        let num_grids = (steps - width / 2) / width;
+        let num_diamonds = (2 * steps) / width;
+        println!(
+            "width={}, steps={steps}, num_grids={num_grids} (num_grids*width+width/2={}), steps/(width + width/2)={} ({})",
+            width,
+            num_grids * width + width / 2,
+           num_diamonds,
+           num_diamonds * width / 2,
+
+        );
+
+        //let full_walk = (0..width).fold(HashSet::from([grid.start]), |steps, i| {
+        //    grid.walk(&steps, false)
+        //});
+
+        let center_walk = (0..width / 2).fold(HashSet::from([grid.start]), |steps, i| {
+            grid.walk(&steps, false)
+        });
+
+        let corner_walk = (0..width / 2 - 2).fold(
+            HashSet::from([
+                Point::new(0, 0),
+                Point::new(width - 1, width - 1),
+                Point::new(0, width - 1),
+                Point::new(width - 1, 0),
+            ]),
+            |steps, i| grid.walk(&steps, false),
+        );
+        /*
+        let missing_walk = full_walk.iter().fold(HashSet::new(), |mut steps, p| {
+            if !corner_walk.contains(p) {
+                steps.insert(*p);
+            }
+            steps
+        });
+        */
+        let union_walk = center_walk
+            .union(&corner_walk)
+            .copied()
+            .collect::<HashSet<_>>();
+
+        grid.print(&union_walk, (width / 2) as usize);
+
+        center_walk.iter().for_each(|p| {
+            if corner_walk.contains(p) {
+                println!("Step in center and corner!: {:?}", p);
+            }
+        });
+
+        //grid.print(&full_walk, (width / 2) as usize);
     }
 
     #[test]
     fn test_print() {
         let grid: Grid = Grid::from_str(TEST_INPUT).unwrap();
+        let width: i64 = grid.rocks.bounds.width();
         for i in 0..10 {
             println!("i={}", i);
-            let walk = grid.stroll(i);
+            let walk = grid.stroll(&grid.start, i, false);
             //grid.print(&walk, i);
         }
 
-        println!("fill_count = {:?}", grid.fill_count());
+        println!("fill_count = {:?}", grid.filled_count());
 
-        let walk = grid.stroll(grid.rocks.width);
+        let walk = grid.stroll(&grid.start, width as usize, true);
         println!(
             "start=({:?}), walk_len={}, stroll length={}",
-            grid.start, walk, grid.rocks.width,
+            grid.start, walk, width,
         );
     }
 
     #[test]
     fn test_part2() {
         let grid: Grid = Grid::from_str(TEST_INPUT).unwrap();
-        assert_eq!(grid.stroll(6), 16);
+        assert_eq!(grid.stroll(&grid.start, 6, true), 16);
 
         let dist = 10;
-        let walk = grid.stroll(dist);
+        let walk = grid.stroll(&grid.start, dist, true);
         assert_eq!(walk, 50);
         //grid.print(&walk, dist);
 
         let dist = 50;
-        let walk = grid.stroll(dist);
+        let walk = grid.stroll(&grid.start, dist, true);
         assert_eq!(walk, 1594);
         //grid.print(&walk, dist);
 
         let dist = 100;
-        let walk = grid.stroll(dist);
-        assert_eq!(walk, 6536);
+        let walk = grid.walk2(&grid.start, dist, true);
+        assert_eq!(walk.len(), 6536);
         //grid.print(&walk, dist);
 
-        //assert_eq!(grid.stroll(500), 167004);
-        //assert_eq!(grid.stroll(1000), 668697);
-        //assert_eq!(grid.stroll(5000), 16733044);
+        let dist = 500;
+        let walk = grid.walk2(&grid.start, dist, true);
+        assert_eq!(walk.len(), 167004);
+
+        let dist = 1000;
+        let walk = grid.walk2(&grid.start, dist, true);
+        assert_eq!(walk.len(), 668697);
+
+        let dist = 5000;
+        let walk = grid.walk2(&grid.start, dist, true);
+        assert_eq!(walk.len(), 16733044);
     }
 }
