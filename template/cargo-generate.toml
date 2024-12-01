@@ -1,0 +1,4 @@
+[placeholders]
+aoc_year = { prompt = "AOC Year?", type = "string", regex = "^[0-9]+$" }
+aoc_day = { prompt = "AOC Day?", type = "string", regex = "^[0-9]+$" }
+project_name = { type = "string", default = "AOC-{{aoc_year}}-Day-{{aoc_day}}" }
