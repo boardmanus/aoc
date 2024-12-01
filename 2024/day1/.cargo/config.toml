@@ -1,0 +1,2 @@
+[alias]
+bloppy = "aoc download -i src/data/input -y 2024 -d "
