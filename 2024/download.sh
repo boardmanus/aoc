@@ -17,4 +17,5 @@ aoc download \
   --year ${year} \
   --day ${day_num} \
   --input-file ${day}/src/data/input \
+  --puzzle-file ${day}/puzzle.md \
   --overwrite
