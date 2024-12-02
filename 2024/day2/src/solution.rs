@@ -9,27 +9,24 @@ pub fn parse_input(input: &str) -> Vec<Vec<i32>> {
         .collect::<Vec<_>>()
 }
 
-pub fn is_safe_diff(maybe_increasing: &mut Option<bool>, a: i32, b: i32) -> bool {
+pub fn is_safe_diff(maybe_last_sign: Option<i32>, a: i32, b: i32) -> (bool, Option<i32>) {
     let diff = b - a;
-    let increasing = match diff {
-        x if x < 0 => Some(false),
-        x if x > 0 => Some(true),
-        _ => None,
-    };
+    let sign = Some(diff.signum());
+    let safe =
+        (diff != 0) && (diff.abs() < 4) && (maybe_last_sign.is_none() || maybe_last_sign == sign);
+    (safe, sign)
+}
 
-    if diff.abs() > 3 || increasing == None {
-        false
-    } else if let Some(_) = maybe_increasing {
-        increasing == *maybe_increasing
-    } else {
-        *maybe_increasing = increasing;
-        true
-    }
+pub fn find_bad_index(levels: &[i32]) -> Option<usize> {
+    let mut safe: (bool, Option<i32>) = (false, None);
+    (0..levels.len() - 1).find(|&i| {
+        safe = is_safe_diff(safe.1, levels[i], levels[i + 1]);
+        !safe.0
+    })
 }
 
 pub fn is_safe(levels: &[i32]) -> bool {
-    let mut increasing: Option<bool> = None;
-    (0..levels.len() - 1).all(|i| is_safe_diff(&mut increasing, levels[i], levels[i + 1]))
+    find_bad_index(levels).is_none()
 }
 
 pub fn without_index(v: &[i32], remove_i: usize) -> Vec<i32> {
@@ -40,14 +37,10 @@ pub fn without_index(v: &[i32], remove_i: usize) -> Vec<i32> {
 }
 
 pub fn is_safe_with_removal(levels: &[i32]) -> bool {
-    let mut maybe_increasing: Option<bool> = None;
-    let res = (0..levels.len() - 1)
-        .find(|&i| !is_safe_diff(&mut maybe_increasing, levels[i], levels[i + 1]));
-
-    if let Some(bad_index) = res {
-        (bad_index > 0) && is_safe(&without_index(levels, bad_index - 1))
-            || is_safe(&without_index(levels, bad_index))
+    if let Some(bad_index) = find_bad_index(levels) {
+        is_safe(&without_index(levels, bad_index))
             || is_safe(&without_index(levels, bad_index + 1))
+            || (bad_index > 0) && is_safe(&without_index(levels, bad_index - 1))
     } else {
         true
     }
