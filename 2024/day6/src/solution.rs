@@ -56,20 +56,12 @@ pub fn part1(input: &str) -> usize {
 
 pub fn part2(input: &str) -> usize {
     let (grid, start) = parse_input(input);
-    (0..grid.height())
-        .map(|row| {
-            (0..grid.width())
-                .filter(|&col| {
-                    let i = Index(col as i64, row as i64);
-                    if grid.at(i) == Some('#') {
-                        false
-                    } else {
-                        is_endless(&grid, start, i)
-                    }
-                })
-                .count()
-        })
-        .sum()
+    let visited = march(&grid, start);
+
+    visited
+        .iter()
+        .filter(|&index| is_endless(&grid, start, *index))
+        .count()
 }
 
 #[cfg(test)]
