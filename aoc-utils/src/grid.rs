@@ -1,8 +1,6 @@
 use std::ops::{Add, Sub};
 
-
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
 
 const DIRS: [Index; 8] = [
@@ -32,14 +30,14 @@ impl Sub for Index {
     }
 }
 
+#[derive(Clone)]
 pub struct Grid<Item: Copy + Eq> {
     width: usize,
     height: usize,
     g: Vec<Item>,
 }
 
-impl <Item: Copy + Eq> Grid<Item> {
-
+impl<Item: Copy + Eq> Grid<Item> {
     pub fn width(&self) -> usize {
         self.width
     }
@@ -56,7 +54,11 @@ impl <Item: Copy + Eq> Grid<Item> {
         let rows_cols: Vec<Vec<_>> = input.lines().map(|line| line.chars().collect()).collect();
         let width = rows_cols[0].len();
         let height = rows_cols.len();
-        let g = rows_cols.iter().flatten().map(|x| convert(*x)).collect::<Vec<_>>();
+        let g = rows_cols
+            .iter()
+            .flatten()
+            .map(|x| convert(*x))
+            .collect::<Vec<_>>();
         Grid { width, height, g }
     }
 
@@ -70,6 +72,29 @@ impl <Item: Copy + Eq> Grid<Item> {
         } else {
             None
         }
+    }
+
+    fn index_from(&self, i: usize) -> Index {
+        Index((i % self.width) as i64, (i / self.width) as i64)
+    }
+
+    fn i_from(&self, index: Index) -> usize {
+        (index.0 as usize) + (index.1 as usize) * self.width
+    }
+
+    pub fn set(&mut self, index: Index, val: Item) {
+        let i = self.i_from(index);
+        self.g[i] = val;
+    }
+
+    pub fn find(&self, c: Item) -> Option<Index> {
+        self.g.iter().enumerate().find_map(|(i, &val)| {
+            if val == c {
+                Some(self.index_from(i))
+            } else {
+                None
+            }
+        })
     }
 
     pub fn at_match(&self, index: Index, c: Item) -> bool {
@@ -94,7 +119,6 @@ impl <Item: Copy + Eq> Grid<Item> {
             .collect()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
