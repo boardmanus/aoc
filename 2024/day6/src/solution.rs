@@ -10,8 +10,8 @@ fn parse_input(input: &str) -> (Grid<char>, Index) {
 }
 
 fn next_move(grid: &Grid<char>, start: Index, dir: Dir) -> Option<(Index, Dir)> {
-    match grid.at(start + dir.grid_dir())? {
-        '^' | '.' => Some((start + dir.grid_dir(), dir)),
+    match grid.at(start + dir)? {
+        '^' | '.' => Some((start + dir, dir)),
         '#' => next_move(grid, start, dir.rotate_cw()),
         _ => None,
     }

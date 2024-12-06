@@ -1,6 +1,6 @@
-use crate::grid::Index;
+use enum_iterator::Sequence;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Sequence)]
 pub enum Dir {
     N,
     NE,
@@ -13,19 +13,6 @@ pub enum Dir {
 }
 
 impl Dir {
-    pub fn grid_dir(&self) -> Index {
-        match self {
-            Dir::N => Index(0, -1),
-            Dir::NE => Index(1, -1),
-            Dir::E => Index(1, 0),
-            Dir::SE => Index(1, 1),
-            Dir::S => Index(0, 1),
-            Dir::SW => Index(-1, 1),
-            Dir::W => Index(-1, 0),
-            Dir::NW => Index(-1, -1),
-        }
-    }
-
     pub fn rotate_cw(&self) -> Dir {
         match self {
             Dir::N => Dir::E,

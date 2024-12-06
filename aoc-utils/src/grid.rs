@@ -1,24 +1,40 @@
 use std::ops::{Add, Sub};
 
+use enum_iterator::all;
+
+use crate::dir::Dir;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
 
-const DIRS: [Index; 8] = [
-    Index(-1, -1),
-    Index(0, -1),
-    Index(1, -1),
-    Index(-1, 0),
-    Index(1, 0),
-    Index(-1, 1),
-    Index(0, 1),
-    Index(1, 1),
-];
+impl Index {
+    pub fn dir(dir: Dir) -> Index {
+        match dir {
+            Dir::N => Index(0, -1),
+            Dir::NE => Index(1, -1),
+            Dir::E => Index(1, 0),
+            Dir::SE => Index(1, 1),
+            Dir::S => Index(0, 1),
+            Dir::SW => Index(-1, 1),
+            Dir::W => Index(-1, 0),
+            Dir::NW => Index(-1, -1),
+        }
+    }
+}
 
 impl Add for Index {
     type Output = Index;
 
     fn add(self, rhs: Index) -> Self::Output {
         Index(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
+
+impl Add<Dir> for Index {
+    type Output = Index;
+
+    fn add(self, rhs: Dir) -> Self::Output {
+        self + Index::dir(rhs)
     }
 }
 
@@ -102,7 +118,7 @@ impl<Item: Copy + Eq> Grid<Item> {
     }
 
     pub fn around(&self, index: Index) -> Vec<Index> {
-        DIRS.iter().map(|&d| index + d).collect()
+        all::<Dir>().map(|d| index + d).collect()
     }
 
     pub fn pos_with_item(&self, c: Item) -> Vec<Index> {
