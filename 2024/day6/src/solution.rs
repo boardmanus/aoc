@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use aoc_utils::dir::Dir;
+use aoc_utils::dir::{Dir, Dir4};
 use aoc_utils::grid::{Grid, Index};
 
 fn parse_input(input: &str) -> (Grid<char>, Index) {
@@ -9,7 +9,7 @@ fn parse_input(input: &str) -> (Grid<char>, Index) {
     (grid, start)
 }
 
-fn next_move(grid: &Grid<char>, start: Index, dir: Dir) -> Option<(Index, Dir)> {
+fn next_move(grid: &Grid<char>, start: Index, dir: Dir4) -> Option<(Index, Dir4)> {
     match grid.at(start + dir)? {
         '^' | '.' => Some((start + dir, dir)),
         '#' => next_move(grid, start, dir.rotate_cw()),
@@ -19,7 +19,7 @@ fn next_move(grid: &Grid<char>, start: Index, dir: Dir) -> Option<(Index, Dir)> 
 
 fn march(grid: &Grid<char>, start: Index) -> HashSet<Index> {
     let mut visited = HashSet::<Index>::from([start]);
-    let mut dir = Dir::N;
+    let mut dir = Dir4::N;
     let mut pos = start;
 
     while let Some(item) = next_move(grid, pos, dir) {
@@ -31,7 +31,7 @@ fn march(grid: &Grid<char>, start: Index) -> HashSet<Index> {
 }
 
 fn is_endless(grid: &Grid<char>, start: Index, barrier: Index) -> bool {
-    let mut dir: Dir = Dir::N;
+    let mut dir: Dir4 = Dir4::N;
     let mut visited = HashSet::<_>::from([(start, dir)]);
     let mut pos = start;
     let mut grid2 = grid.clone();

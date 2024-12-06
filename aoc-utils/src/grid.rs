@@ -1,23 +1,29 @@
 use std::ops::{Add, Sub};
-
-use enum_iterator::all;
-
-use crate::dir::Dir;
+use crate::dir::{Dir, Dir4, Dir8};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
 
 impl Index {
-    pub fn dir(dir: Dir) -> Index {
+    pub fn dir8(dir: Dir8) -> Index {
         match dir {
-            Dir::N => Index(0, -1),
-            Dir::NE => Index(1, -1),
-            Dir::E => Index(1, 0),
-            Dir::SE => Index(1, 1),
-            Dir::S => Index(0, 1),
-            Dir::SW => Index(-1, 1),
-            Dir::W => Index(-1, 0),
-            Dir::NW => Index(-1, -1),
+            Dir8::N => Index(0, -1),
+            Dir8::NE => Index(1, -1),
+            Dir8::E => Index(1, 0),
+            Dir8::SE => Index(1, 1),
+            Dir8::S => Index(0, 1),
+            Dir8::SW => Index(-1, 1),
+            Dir8::W => Index(-1, 0),
+            Dir8::NW => Index(-1, -1),
+        }
+    }
+
+    pub fn dir4(dir: Dir4) -> Index {
+        match dir {
+            Dir4::N => Index(0, -1),
+            Dir4::E => Index(1, 0),
+            Dir4::S => Index(0, 1),
+            Dir4::W => Index(-1, 0),
         }
     }
 }
@@ -30,11 +36,19 @@ impl Add for Index {
     }
 }
 
-impl Add<Dir> for Index {
+impl Add<Dir8> for Index {
     type Output = Index;
 
-    fn add(self, rhs: Dir) -> Self::Output {
-        self + Index::dir(rhs)
+    fn add(self, rhs: Dir8) -> Self::Output {
+        self + Index::dir8(rhs)
+    }
+}
+
+impl Add<Dir4> for Index {
+    type Output = Index;
+
+    fn add(self, rhs: Dir4) -> Self::Output {
+        self + Index::dir4(rhs)
     }
 }
 
@@ -118,7 +132,7 @@ impl<Item: Copy + Eq> Grid<Item> {
     }
 
     pub fn around(&self, index: Index) -> Vec<Index> {
-        all::<Dir>().map(|d| index + d).collect()
+        Dir8::cw().map(|d| index + d).collect()
     }
 
     pub fn pos_with_item(&self, c: Item) -> Vec<Index> {
