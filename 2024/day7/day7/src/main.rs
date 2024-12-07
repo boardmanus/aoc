@@ -1,12 +1,10 @@
-use day{{aoc_day}}::solution::{part1, part2};
+use day7::solution::{part1, part2};
 use lazy_regex::regex;
 use std::{env, fs};
 
 fn check_solution(solution: &str, answer: Option<&String>) {
     if let Some(answer) = answer {
-        if answer == solution {
-            println!("Answer matches expected solution.");
-        } else {
+        if answer != solution {
             println!("WRONG! Expected {answer}");
         }
     }
@@ -39,7 +37,6 @@ fn main() {
             .lines()
             .filter_map(|line| extract_solution(line))
             .for_each(|answer| answers.push(answer.to_string()));
-        println!("Found answers: {:?}", answers);
     }
 
     const INPUT: &str = include_str!("data/input");

@@ -1,4 +1,4 @@
-use day{{aoc_day}}::solution::{part1, part2};
+use day7::solution::{part1, part2};
 use lazy_regex::regex;
 use std::{env, fs};
 

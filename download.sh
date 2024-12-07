@@ -1,13 +1,33 @@
 #!/usr/bin/env bash
 set -e
 
-readonly day_num=${1}
-readonly year="$(basename ${PWD})"
-readonly day="day${day_num}"
+path="${PWD}"
+if [[ -z "${1}" ]]; then
+  readonly day="$(basename ${PWD})"
+  readonly day_num="${day#day}"
+  path="${path%/*}"
+else
+  readonly day_num=${1}
+  readonly day="day${day_num}"
+fi
+readonly year="$(basename ${path})"
+
+if (( $day_num < 32 )) \
+  && [[ "$day" =~ ^day[0-9]+$ ]] \
+  && [[ "$day_num" =~ ^[0-9]+$ ]]  \
+  &&  [[ "$year" =~ ^[0-9]+$  ]]; then
+  echo "Generating stuff for day=$day, day_num=$day_nu, year=$year..."
+else
+  echo "Running from the wrong directory: pwd=$PWD, day=$day, day_num=$day_num, year=$year"
+  exit 1
+fi
+
+readonly base_path="$(realpath $(dirname $0))"
+readonly project_path="$base_path/$year/$day"
 
 if [[ ! -d ${day} ]]; then
   cargo generate \
-    --path ../template \
+    --path $base_path/template \
     --name ${day} \
     --define aoc_year=${year} \
     --define aoc_day=${day_num}
@@ -16,6 +36,6 @@ fi
 aoc download \
   --year ${year} \
   --day ${day_num} \
-  --input-file ${day}/src/data/input \
-  --puzzle-file ${day}/puzzle.md \
+  --input-file $project_path/src/data/input \
+  --puzzle-file $project_path/puzzle.md \
   --overwrite
