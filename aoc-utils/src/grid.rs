@@ -1,5 +1,9 @@
-use std::ops::{Add, Sub};
 use crate::dir::{Dir, Dir4, Dir8};
+use std::{
+    fmt::Display,
+    ops::{Add, Sub},
+    slice::Iter,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
@@ -60,11 +64,23 @@ impl Sub for Index {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Grid<Item: Copy + Eq> {
     width: usize,
     height: usize,
     g: Vec<Item>,
+}
+
+impl<Item: Copy + Eq + Display> Display for Grid<Item> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for col in 0..self.height() as i64 {
+            for row in 0..self.width() as i64 {
+                write!(f, "{}", self.g[self.i_from(Index(row, col))])?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
 }
 
 impl<Item: Copy + Eq> Grid<Item> {
@@ -78,6 +94,10 @@ impl<Item: Copy + Eq> Grid<Item> {
 
     pub fn parse(input: &str) -> Grid<char> {
         Grid::parse_items(input, |c| c)
+    }
+
+    pub fn iter(&self) -> Iter<'_, Item> {
+        self.g.iter()
     }
 
     pub fn parse_items(input: &str, convert: fn(char) -> Item) -> Grid<Item> {
@@ -104,7 +124,7 @@ impl<Item: Copy + Eq> Grid<Item> {
         }
     }
 
-    fn index_from(&self, i: usize) -> Index {
+    pub fn index_from(&self, i: usize) -> Index {
         Index((i % self.width) as i64, (i / self.width) as i64)
     }
 
