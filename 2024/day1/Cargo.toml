@@ -6,7 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num = "0.4.3"
-
-[build-dependencies]
-aoc-cli = "0.12.0"
+aoc-utils = { path = "../../aoc-utils" }
+lazy-regex = "3.3.0"

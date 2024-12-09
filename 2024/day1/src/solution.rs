@@ -1,5 +1,3 @@
-use num::abs;
-
 use crate::utils::sorted;
 
 fn parse_input(input: &str) -> (Vec<u32>, Vec<u32>) {
@@ -25,7 +23,7 @@ fn sum_differences(left: &[u32], right: &[u32]) -> u32 {
     let right_s = sorted(right);
 
     (0..left_s.len())
-        .map(|i| abs(left_s[i] as i32 - right_s[i] as i32))
+        .map(|i| (left_s[i] as i32 - right_s[i] as i32).abs())
         .sum::<i32>() as u32
 }
 
