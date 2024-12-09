@@ -25,7 +25,7 @@ fi
 readonly base_path="$(realpath $(dirname $0))"
 readonly project_path="$base_path/$year/$day"
 
-if [[ ! -d ${day} ]]; then
+if [[ ! -d ${project_path} ]]; then
   cargo generate \
     --path $base_path/template \
     --name ${day} \
