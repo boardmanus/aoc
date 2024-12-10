@@ -1,4 +1,4 @@
-use enum_iterator::{all, reverse_all, All, ReverseAll, Sequence, next_cycle, previous_cycle};
+use enum_iterator::{all, next_cycle, previous_cycle, reverse_all, All, ReverseAll, Sequence};
 
 pub trait Dir<T> {
     fn cw() -> All<T>;
@@ -20,20 +20,19 @@ pub enum Dir8 {
 }
 
 impl Dir<Dir8> for Dir8 {
-    
     fn cw() -> All<Dir8> {
         all::<Dir8>()
     }
 
-     fn ccw() -> ReverseAll<Dir8> {
+    fn ccw() -> ReverseAll<Dir8> {
         reverse_all::<Dir8>()
     }
 
-     fn rotate_cw(&self) -> Dir8 {
+    fn rotate_cw(&self) -> Dir8 {
         next_cycle::<Dir8>(self)
     }
 
-     fn rotate_ccw(&self) -> Dir8 {
+    fn rotate_ccw(&self) -> Dir8 {
         previous_cycle::<Dir8>(self)
     }
 }
@@ -47,20 +46,19 @@ pub enum Dir4 {
 }
 
 impl Dir<Dir4> for Dir4 {
-    
     fn cw() -> All<Dir4> {
         all::<Dir4>()
     }
 
-     fn ccw() -> ReverseAll<Dir4> {
+    fn ccw() -> ReverseAll<Dir4> {
         reverse_all::<Dir4>()
     }
 
-     fn rotate_cw(&self) -> Dir4 {
+    fn rotate_cw(&self) -> Dir4 {
         next_cycle::<Dir4>(self)
     }
 
-     fn rotate_ccw(&self) -> Dir4 {
+    fn rotate_ccw(&self) -> Dir4 {
         previous_cycle::<Dir4>(self)
     }
 }

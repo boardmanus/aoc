@@ -64,6 +64,73 @@ impl Sub for Index {
     }
 }
 
+pub enum IterType {
+    Row,
+    Col,
+}
+
+pub struct GridIter<'a, Item: Copy + Eq> {
+    grid: &'a Grid<Item>,
+    iter_type: IterType,
+    i: Option<usize>,
+}
+
+impl<'a, Item: Copy + Eq> GridIter<'a, Item> {
+    fn new(grid: &'a Grid<Item>, iter_type: IterType) -> GridIter<'a, Item> {
+        GridIter::<Item> {
+            grid,
+            iter_type,
+            i: if grid.g.len() > 0 { Some(0) } else { None },
+        }
+    }
+
+    fn next_i(&self) -> Option<usize> {
+        let i = self.i?;
+        let len = self.grid.g.len();
+        match self.iter_type {
+            IterType::Row => {
+                if i + 1 < len {
+                    Some(i + 1)
+                } else {
+                    None
+                }
+            }
+            IterType::Col => {
+                let new_i = i + self.grid.width;
+                if new_i < len {
+                    Some(new_i)
+                } else {
+                    let wrap_i = new_i % self.grid.width + 1;
+                    if wrap_i < self.grid.width {
+                        Some(wrap_i)
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a, GridItem: Copy + Eq> Iterator for GridIter<'a, GridItem> {
+    type Item = &'a GridItem;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.i?;
+        self.i = self.next_i();
+        self.grid.g.get(i)
+    }
+}
+
+impl<'a, GridItem: Copy + Eq> DoubleEndedIterator for GridIter<'a, GridItem> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let i = self.i?;
+        assert!(i < self.grid.g.len());
+        self.i = self.next_i();
+        self.grid.g.get(self.grid.g.len() - i - 1)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Grid<Item: Copy + Eq> {
     width: usize,
@@ -98,6 +165,14 @@ impl<Item: Copy + Eq> Grid<Item> {
 
     pub fn iter(&self) -> Iter<'_, Item> {
         self.g.iter()
+    }
+
+    pub fn row_iter(&self) -> GridIter<'_, Item> {
+        GridIter::<Item>::new(self, IterType::Row)
+    }
+
+    pub fn col_iter(&self) -> GridIter<'_, Item> {
+        GridIter::<Item>::new(self, IterType::Col)
     }
 
     pub fn parse_items(input: &str, convert: fn(char) -> Item) -> Grid<Item> {
@@ -154,7 +229,20 @@ impl<Item: Copy + Eq> Grid<Item> {
     pub fn around(&self, index: Index) -> Vec<Index> {
         Dir8::cw().map(|d| index + d).collect()
     }
-
+    /*
+        pub fn items(&self, c: Item) -> impl Iterator<Item = Index> {
+            self.g
+                .iter()
+                .enumerate()
+                .filter(|&(_i, &c2)| c == c2)
+                .map(|(i, _c)| {
+                    Index(
+                        i.rem_euclid(self.width) as i64,
+                        i.div_euclid(self.width) as i64,
+                    )
+                })
+        }
+    */
     pub fn pos_with_item(&self, c: Item) -> Vec<Index> {
         self.g
             .iter()
@@ -188,5 +276,29 @@ mod tests {
     fn test_grid_at() {
         let g = Grid::<char>::parse("1234\n1234\n5678\n");
         assert_eq!(g.at(Index(2, 1)), Some('3'));
+    }
+
+    #[test]
+    fn test_grid_row_iter() {
+        let g = Grid::<char>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.row_iter().collect::<String>(), "123412345678");
+    }
+
+    #[test]
+    fn test_grid_col_iter() {
+        let g = Grid::<char>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.col_iter().collect::<String>(), "115226337448");
+    }
+
+    #[test]
+    fn test_grid_row_iter_rev() {
+        let g = Grid::<char>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.row_iter().rev().collect::<String>(), "876543214321");
+    }
+
+    #[test]
+    fn test_grid_col_iter_rev() {
+        let g = Grid::<char>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.col_iter().rev().collect::<String>(), "844733622511");
     }
 }
