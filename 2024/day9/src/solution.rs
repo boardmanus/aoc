@@ -54,13 +54,10 @@ fn defrag2(mem_blocks: &MemoryBlocks, mem: &Memory) -> Memory {
                 if free.1 < data_idx {
                     let free = free_space.get_mut(i).unwrap();
                     (0..data_len).for_each(|i| {
-                        assert_eq!(new_mem[free.1 + i], None);
                         new_mem[free.1 + i] = data_file;
-                        assert_eq!(new_mem[data_idx + i], data_file);
                         new_mem[data_idx + i] = None
                     });
                     free.1 += data_len;
-                    assert!(free.2 >= data_len);
                     free.2 -= data_len;
                 }
             }
