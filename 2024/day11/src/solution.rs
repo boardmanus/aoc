@@ -27,26 +27,23 @@ impl StoneChange {
 type StoneCache = HashMap<(u64, usize), usize>;
 
 fn cached_blink_lots(stone: u64, num_blinks: usize, cache: &mut StoneCache) -> usize {
-    let key = (stone, num_blinks);
-    if let Some(&count) = cache.get(&key) {
-        return count;
-    }
-
-    let count = if num_blinks == 0 {
+    if num_blinks == 0 {
         1
+    } else if let Some(&count) = cache.get(&(stone, num_blinks)) {
+        count
     } else {
-        match StoneChange::change(stone) {
+        let count = match StoneChange::change(stone) {
             StoneChange::Replace(x) => cached_blink_lots(x, num_blinks - 1, cache),
             StoneChange::Split(l, r) => {
                 cached_blink_lots(l, num_blinks - 1, cache)
                     + cached_blink_lots(r, num_blinks - 1, cache)
             }
-        }
-    };
+        };
 
-    cache.insert(key, count);
+        cache.insert((stone, num_blinks), count);
 
-    count
+        count
+    }
 }
 
 fn blink_lots(stones: &[u64], num_blinks: usize) -> usize {
@@ -57,6 +54,7 @@ fn blink_lots(stones: &[u64], num_blinks: usize) -> usize {
         .map(|stone| cached_blink_lots(*stone, num_blinks, &mut cache))
         .sum()
 }
+
 fn parse_input(input: &str) -> Vec<u64> {
     input
         .split_whitespace()
