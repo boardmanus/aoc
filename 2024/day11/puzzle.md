@@ -1,7 +1,7 @@
 \--- Day 11: Plutonian Pebbles ---
 ----------
 
-The ancient civilization on [Pluto](/2019/day/20) was known for its ability to manipulate spacetime, and while the Historians explore their infinite corridors, you've noticed a strange set of physics-defying stones.
+The ancient civilization on [Pluto](/2019/day/20) was known for its ability to manipulate spacetime, and while The Historians explore their infinite corridors, you've noticed a strange set of physics-defying stones.
 
 At first glance, they seem like normal stones: they're arranged in a perfectly *straight line*, and each stone has a *number* engraved on it.
 
@@ -59,8 +59,21 @@ In this example, after blinking six times, you would have `22` stones. After bli
 
 Consider the arrangement of stones in front of you. *How many stones will you have after blinking 25 times?*
 
-To begin, [get your puzzle input](11/input).
+Your puzzle answer was `186203`.
 
-Answer:
+\--- Part Two ---
+----------
 
-You can also [Shareon [Bluesky](https://bsky.app/intent/compose?text=%22Plutonian+Pebbles%22+%2D+Day+11+%2D+Advent+of+Code+2024+%23AdventOfCode+https%3A%2F%2Fadventofcode%2Ecom%2F2024%2Fday%2F11) [Twitter](https://twitter.com/intent/tweet?text=%22Plutonian+Pebbles%22+%2D+Day+11+%2D+Advent+of+Code+2024&url=https%3A%2F%2Fadventofcode%2Ecom%2F2024%2Fday%2F11&related=ericwastl&hashtags=AdventOfCode) [Mastodon](javascript:void(0);)] this puzzle.
+The Historians sure are taking a long time. To be fair, the infinite corridors *are* very large.
+
+*How many stones would you have after blinking a total of 75 times?*
+
+Your puzzle answer was `221291560078593`.
+
+Both parts of this puzzle are complete! They provide two gold stars: \*\*
+
+At this point, you should [return to your Advent calendar](/2024) and try another puzzle.
+
+If you still want to see it, you can [get your puzzle input](11/input).
+
+You can also [Shareon [Bluesky](https://bsky.app/intent/compose?text=I%27ve+completed+%22Plutonian+Pebbles%22+%2D+Day+11+%2D+Advent+of+Code+2024+%23AdventOfCode+https%3A%2F%2Fadventofcode%2Ecom%2F2024%2Fday%2F11) [Twitter](https://twitter.com/intent/tweet?text=I%27ve+completed+%22Plutonian+Pebbles%22+%2D+Day+11+%2D+Advent+of+Code+2024&url=https%3A%2F%2Fadventofcode%2Ecom%2F2024%2Fday%2F11&related=ericwastl&hashtags=AdventOfCode) [Mastodon](javascript:void(0);)] this puzzle.
