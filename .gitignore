@@ -1,2 +1,4 @@
 .privatestuff
 **/target/
+**/puzzle.md
+**/src/data/input

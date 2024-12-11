@@ -11,7 +11,7 @@ type TrailHeads = HashMap<Index, HashMap<Index, usize>>;
 type Trails = HashSet<Trail>;
 
 fn find_trails(grid: &TrailTopo) -> TrailHeads {
-    let trail_starts = grid.pos_with_item(0);
+    let trail_starts = grid.filter_pos(0);
     assert!(trail_starts.len() > 0);
     let mut trail_heads = TrailHeads::default();
     let mut complete_trails = Trails::default();

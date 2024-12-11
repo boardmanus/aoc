@@ -1,7 +1,10 @@
-use aoc_utils::{dir::{Dir, Dir8}, grid::{Grid, Index}, str::AocStr};
+use aoc_utils::{
+    dir::{Dir, Dir8},
+    grid::{Grid, Index},
+    str::AocStr,
+};
 
 const SEARCH: &str = "XMAS";
-
 
 trait Day4Grid {
     fn matches_in_dir(&self, pos: Index, s: &str, dir: Dir8) -> bool;
@@ -9,7 +12,6 @@ trait Day4Grid {
 }
 
 impl Day4Grid for Grid<char> {
-
     fn matches_in_dir(&self, pos: Index, s: &str, dir: Dir8) -> bool {
         let mut next_pos = pos;
         s.chars().all(|c| {
@@ -20,16 +22,16 @@ impl Day4Grid for Grid<char> {
     }
 
     fn count_matches(&self, pos: Index, s: &str) -> usize {
-            Dir8::cw()
-                .into_iter()
-                .filter(|&dir| self.matches_in_dir(pos, s, dir))
-                .count()
+        Dir8::cw()
+            .into_iter()
+            .filter(|&dir| self.matches_in_dir(pos, s, dir))
+            .count()
     }
 }
 
 pub fn part1(input: &str) -> usize {
     let grid = Grid::<char>::parse(input);
-    let start = grid.pos_with_item(SEARCH.first().unwrap());
+    let start = grid.filter_pos(SEARCH.first().unwrap());
     start
         .iter()
         .map(|&pos| grid.count_matches(pos, SEARCH))
@@ -38,12 +40,11 @@ pub fn part1(input: &str) -> usize {
 
 pub fn part2(input: &str) -> usize {
     let grid = Grid::<char>::parse(input);
-    let start = grid.pos_with_item('A');
+    let start = grid.filter_pos('A');
     start
         .iter()
         .filter(|&pos| {
-            ((grid.at_match(*pos + Index(-1, -1), 'M')
-                && grid.at_match(*pos + Index(1, 1), 'S'))
+            ((grid.matches(*pos + Index(-1, -1), 'M') && grid.matches(*pos + Index(1, 1), 'S'))
                 || (grid.at(*pos + Index(-1, -1)) == Some('S')
                     && grid.at(*pos + Index(1, 1)) == Some('M')))
                 && ((grid.at(*pos + Index(-1, 1)) == Some('M')

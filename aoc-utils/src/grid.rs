@@ -222,28 +222,15 @@ impl<Item: Copy + Eq> Grid<Item> {
         })
     }
 
-    pub fn at_match(&self, index: Index, c: Item) -> bool {
+    pub fn matches(&self, index: Index, c: Item) -> bool {
         self.at(index) == Some(c)
     }
 
     pub fn around(&self, index: Index) -> Vec<Index> {
         Dir8::cw().map(|d| index + d).collect()
     }
-    /*
-        pub fn items(&self, c: Item) -> impl Iterator<Item = Index> {
-            self.g
-                .iter()
-                .enumerate()
-                .filter(|&(_i, &c2)| c == c2)
-                .map(|(i, _c)| {
-                    Index(
-                        i.rem_euclid(self.width) as i64,
-                        i.div_euclid(self.width) as i64,
-                    )
-                })
-        }
-    */
-    pub fn pos_with_item(&self, c: Item) -> Vec<Index> {
+
+    pub fn filter_pos(&self, c: Item) -> Vec<Index> {
         self.g
             .iter()
             .enumerate()
