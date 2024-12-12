@@ -45,6 +45,17 @@ pub enum Dir4 {
     W,
 }
 
+impl Dir4 {
+    pub fn index(&self) -> usize {
+        match self {
+            Dir4::N => 0,
+            Dir4::E => 1,
+            Dir4::S => 2,
+            Dir4::W => 3,
+        }
+    }
+}
+
 impl Dir<Dir4> for Dir4 {
     fn cw() -> All<Dir4> {
         all::<Dir4>()

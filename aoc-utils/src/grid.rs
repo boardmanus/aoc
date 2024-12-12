@@ -1,11 +1,13 @@
 use crate::dir::{Dir, Dir4, Dir8};
 use std::{
+    cmp::Ordering,
+    collections::HashSet,
     fmt::Display,
     ops::{Add, Sub},
     slice::Iter,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord)]
 pub struct Index(pub i64, pub i64);
 
 impl Index {
@@ -28,6 +30,24 @@ impl Index {
             Dir4::E => Index(1, 0),
             Dir4::S => Index(0, 1),
             Dir4::W => Index(-1, 0),
+        }
+    }
+}
+
+impl PartialOrd for Index {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.1 < other.1 {
+            Some(Ordering::Less)
+        } else if self.1 > other.1 {
+            Some(Ordering::Greater)
+        } else {
+            if self.0 < other.0 {
+                Some(Ordering::Less)
+            } else if self.0 > other.0 {
+                Some(Ordering::Greater)
+            } else {
+                Some(Ordering::Equal)
+            }
         }
     }
 }
@@ -61,6 +81,45 @@ impl Sub for Index {
 
     fn sub(self, rhs: Self) -> Self::Output {
         Index(self.0 - rhs.0, self.1 - rhs.1)
+    }
+}
+
+impl Sub<Dir8> for Index {
+    type Output = Index;
+
+    fn sub(self, rhs: Dir8) -> Self::Output {
+        self - Index::dir8(rhs)
+    }
+}
+
+impl Sub<Dir4> for Index {
+    type Output = Index;
+
+    fn sub(self, rhs: Dir4) -> Self::Output {
+        self - Index::dir4(rhs)
+    }
+}
+
+pub struct GridIndexIter<'a, Item: Copy + Eq> {
+    grid_iter: GridIter<'a, Item>,
+}
+
+impl<'a, Item: Copy + Eq> GridIndexIter<'a, Item> {
+    fn new(grid: &'a Grid<Item>, iter_type: IterType) -> GridIndexIter<'a, Item> {
+        let grid_iter = GridIter::<Item> {
+            grid,
+            iter_type,
+            i: if grid.g.len() > 0 { Some(0) } else { None },
+        };
+        GridIndexIter { grid_iter }
+    }
+}
+impl<'a, GridItem: Copy + Eq> Iterator for GridIndexIter<'a, GridItem> {
+    type Item = (Index, &'a GridItem);
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.grid_iter.i?;
+        let gi = self.grid_iter.next()?;
+        Some((self.grid_iter.grid.index_from(i), gi))
     }
 }
 
@@ -171,8 +230,16 @@ impl<Item: Copy + Eq> Grid<Item> {
         GridIter::<Item>::new(self, IterType::Row)
     }
 
+    pub fn row_index_iter(&self) -> GridIndexIter<'_, Item> {
+        GridIndexIter::<Item>::new(self, IterType::Row)
+    }
+
     pub fn col_iter(&self) -> GridIter<'_, Item> {
         GridIter::<Item>::new(self, IterType::Col)
+    }
+
+    pub fn col_index_iter(&self) -> GridIndexIter<'_, Item> {
+        GridIndexIter::<Item>::new(self, IterType::Col)
     }
 
     pub fn parse_items(input: &str, convert: fn(char) -> Item) -> Grid<Item> {
