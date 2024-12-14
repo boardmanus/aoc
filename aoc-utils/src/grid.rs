@@ -1,7 +1,6 @@
 use crate::dir::{Dir, Dir4, Dir8};
 use std::{
     cmp::Ordering,
-    collections::HashSet,
     fmt::Display,
     ops::{Add, Sub},
     slice::Iter,
@@ -210,6 +209,11 @@ impl<Item: Copy + Eq + Display> Display for Grid<Item> {
 }
 
 impl<Item: Copy + Eq> Grid<Item> {
+    pub fn new(item: Item, width: usize, height: usize) -> Grid<Item> {
+        let g = vec![item; width * height];
+        Grid { width, height, g }
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
