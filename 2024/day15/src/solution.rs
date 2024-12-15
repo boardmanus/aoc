@@ -10,114 +10,46 @@ fn robot_pos(grid: &WarehouseGrid) -> Index {
     grid.find('@').unwrap()
 }
 
-fn move_ops_r(moves: &mut Vec<Index>, grid: &WarehouseGrid, from: Index, dir: Dir4) -> bool {
+fn move_ops(moves: &mut Vec<Index>, grid: &WarehouseGrid, from: Index, dir: Dir4) -> bool {
     let to = from + dir;
     let to_c = grid.at(to).unwrap();
     let ok_to_move = match to_c {
         '.' => true,
-        'O' => move_ops_r(moves, grid, to, dir),
+        'O' => move_ops(moves, grid, to, dir),
         '[' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops_r(moves, grid, to, dir) && move_ops_r(moves, grid, to + Dir4::E, dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::E, dir)
             }
-            _ => move_ops_r(moves, grid, to, dir),
+            _ => move_ops(moves, grid, to, dir),
         },
         ']' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops_r(moves, grid, to, dir) && move_ops_r(moves, grid, to + Dir4::W, dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::W, dir)
             }
-            _ => move_ops_r(moves, grid, to, dir),
+            _ => move_ops(moves, grid, to, dir),
         },
         '#' => false,
         _ => false,
     };
 
-    if ok_to_move {
-        if !moves.contains(&from) {
-            moves.push(from);
-        }
+    if ok_to_move && !moves.contains(&from) {
+        moves.push(from);
     }
 
     ok_to_move
 }
 
-fn move_ops(grid: &WarehouseGrid, from: Index, dir: Dir4) -> Vec<Index> {
-    let mut moves: Vec<Index> = Vec::new();
-
-    let mut from = from;
-    while let Some(c) = grid.at(from + dir) {
-        let next = from + dir;
-        match c {
-            '.' | '@' => {
-                moves.push(next);
-                break;
-            }
-            'O' => {
-                moves.push(next);
-            }
-            '[' => match dir {
-                Dir4::N | Dir4::S => {
-                    moves.push(next);
-                    moves.push(next + Dir4::E);
-                }
-                _ => {
-                    moves.push(next);
-                }
-            },
-            ']' => match dir {
-                Dir4::N | Dir4::S => {
-                    moves.push(next);
-                    moves.push(next + Dir4::W);
-                }
-                _ => {
-                    moves.push(next);
-                }
-            },
-            _ => {
-                moves.clear();
-                break;
-            }
-        };
-        from = next;
-    }
-    moves
-}
-
 fn move_all(grid: &mut WarehouseGrid, directions: &Directions) {
-    let mut robot = robot_pos(&grid);
+    let mut robot = robot_pos(grid);
     directions.iter().for_each(|&dir| {
-        robot = move_robot_r(grid, robot, dir);
+        robot = move_robot(grid, robot, dir);
     });
     println!("{grid}");
 }
 
-fn move_thing(grid: &mut WarehouseGrid, to: Index, dir: Dir4) {
-    let from = to - dir;
-    let c = grid.at(from).unwrap();
-    grid.set(to, c);
-    grid.set(from, '.');
-}
-
 fn move_robot(grid: &mut WarehouseGrid, robot: Index, dir: Dir4) -> Index {
-    let ops = move_ops(grid, robot, dir);
-    if ops.len() > 0 {
-        let mut it = ops.iter();
-        if let Some(&new_robot) = it.next() {
-            it.rev().for_each(|&pos: &Index| move_thing(grid, pos, dir));
-            grid.set(robot, '.');
-            grid.set(new_robot, '@');
-            new_robot
-        } else {
-            robot
-        }
-    } else {
-        robot
-    }
-}
-
-fn move_robot_r(grid: &mut WarehouseGrid, robot: Index, dir: Dir4) -> Index {
     let mut moves = Vec::<Index>::new();
-    if move_ops_r(&mut moves, grid, robot, dir) {
+    if move_ops(&mut moves, grid, robot, dir) {
         moves.into_iter().for_each(|from| {
             let to = from + dir;
             let c = grid.at(from).unwrap();
