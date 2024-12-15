@@ -209,6 +209,14 @@ impl<Item: Copy + Eq + Display> Display for Grid<Item> {
 }
 
 impl<Item: Copy + Eq> Grid<Item> {
+    pub fn create(width: usize, height: usize, g: Vec<Item>) -> Option<Grid<Item>> {
+        if g.len() == width * height {
+            Some(Grid { width, height, g })
+        } else {
+            None
+        }
+    }
+
     pub fn new(item: Item, width: usize, height: usize) -> Grid<Item> {
         let g = vec![item; width * height];
         Grid { width, height, g }
