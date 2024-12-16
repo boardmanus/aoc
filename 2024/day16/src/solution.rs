@@ -5,11 +5,6 @@ use aoc_utils::{
     grid::{Grid, Index},
 };
 
-enum Move {
-    Turn(Dir4),
-    Walk(Dir4),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Pos {
     loc: Index,
@@ -22,28 +17,61 @@ impl Pos {
     }
 }
 
-fn find_min_path(grid: &Grid<char>) -> usize {
+struct Paths {
+    score: usize,
+    paths: Vec<HashSet<Index>>,
+}
+
+impl Paths {
+    fn init() -> Paths {
+        Paths {
+            score: 0,
+            paths: vec![],
+        }
+    }
+
+    fn new(score: usize, path: &HashSet<Index>) -> Paths {
+        Paths {
+            score,
+            paths: vec![path.clone()],
+        }
+    }
+
+    fn add(&mut self, path: &HashSet<Index>) {
+        self.paths.push(path.clone());
+    }
+}
+
+fn find_min_path(grid: &Grid<char>) -> (usize, HashSet<Index>) {
     let start = grid.find('S').unwrap();
     let end = grid.find('E').unwrap();
+    let mut paths = Paths::init();
     let mut visited: HashMap<Pos, usize> = HashMap::new();
     let mut options: VecDeque<(Pos, usize, HashSet<Index>)> =
-        VecDeque::from([(Pos::new(start, Dir4::E), 0, HashSet::new())]);
+        VecDeque::from([(Pos::new(start, Dir4::E), 0, HashSet::from([start]))]);
 
-    while let Some((pos, score, mut path)) = options.pop_front() {
-        if let Some(&old_score) = visited.get(&pos) {
-            if score >= old_score {
+    while let Some((pos, score, path)) = options.pop_front() {
+        if let Some(old_score) = visited.get(&pos) {
+            if score > *old_score {
                 continue;
             }
         }
+
         visited.insert(pos, score);
         if pos.loc == end {
+            if score < paths.score || paths.score == 0 {
+                paths = Paths::new(score, &path);
+            } else if score == paths.score {
+                paths.add(&path);
+            }
             continue;
         }
         let new_loc = pos.loc + pos.dir;
         if let Some(c) = grid.at(new_loc) {
             if c != '#' {
-                path.insert(new_loc);
-                options.push_back((Pos::new(new_loc, pos.dir), score + 1, path.clone()));
+                let mut p = path.clone();
+                p.insert(new_loc);
+                options.push_back((Pos::new(new_loc, pos.dir), score + 1, p));
             }
             options.push_back((
                 Pos::new(pos.loc, pos.dir.rotate_ccw()),
@@ -54,19 +82,26 @@ fn find_min_path(grid: &Grid<char>) -> usize {
         }
     }
 
-    *Dir4::cw()
-        .filter_map(|dir| visited.get(&Pos::new(end, dir)))
-        .min()
-        .unwrap()
+    let locs = paths
+        .paths
+        .into_iter()
+        .fold(HashSet::new(), |acc, x| acc.union(&x).map(|&h| h).collect());
+
+    (paths.score, locs)
 }
 
 pub fn part1(input: &str) -> usize {
     let grid = Grid::<char>::parse(input);
-    find_min_path(&grid)
+    let res = find_min_path(&grid);
+    println!("{:?}", res.1);
+    res.0
 }
 
-pub fn part2(input: &str) -> String {
-    input.to_string()
+pub fn part2(input: &str) -> usize {
+    let mut grid = Grid::<char>::parse(input);
+    let res = find_min_path(&grid);
+    res.1.iter().for_each(|&i| grid.set(i, 'O'));
+    res.1.len()
 }
 
 #[cfg(test)]
@@ -78,8 +113,10 @@ mod tests {
     pub const TEST_ANSWER: usize = 7036;
     pub const TEST_INPUT_P1_2: &str = include_str!("data/input_example_2");
     pub const TEST_ANSWER_P1_2: usize = 11048;
-    pub const TEST_INPUT_2: &str = TEST_INPUT;
-    pub const TEST_ANSWER_2: &str = "part2";
+    pub const TEST_INPUT_P2_1: &str = include_str!("data/input_example");
+    pub const TEST_OUTPUT_P2_1: &str = include_str!("data/output_part2_1");
+    pub const TEST_INPUT_P2_2: &str = include_str!("data/input_example_2");
+    pub const TEST_OUTPUT_P2_2: &str = include_str!("data/output_part2_2");
 
     #[test]
     fn test_part1() {
@@ -92,7 +129,20 @@ mod tests {
     }
 
     #[test]
-    fn test_part2() {
-        assert_eq!(part2(TEST_INPUT_2), TEST_ANSWER_2);
+    fn test_part2_1() {
+        let mut grid = Grid::<char>::parse(TEST_INPUT_P2_1);
+        let res = find_min_path(&grid);
+        res.1.iter().for_each(|&i| grid.set(i, 'O'));
+        println!("{grid}");
+        assert_eq!(grid.to_string(), TEST_OUTPUT_P2_1);
+    }
+
+    #[test]
+    fn test_part2_2() {
+        let mut grid = Grid::<char>::parse(TEST_INPUT_P2_2);
+        let res = find_min_path(&grid);
+        res.1.iter().for_each(|&i| grid.set(i, 'O'));
+        println!("{grid}");
+        assert_eq!(grid.to_string(), TEST_OUTPUT_P2_2);
     }
 }
