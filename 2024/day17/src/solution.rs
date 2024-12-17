@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, ops::Shl};
+use std::ops::Shl;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Registers {
@@ -43,7 +43,7 @@ impl Registers {
     }
 
     fn bxl(&mut self, val: u8) -> Option<u8> {
-        self.b = (self.b ^ (val as u64)) & 0x7;
+        self.b = (self.b ^ (val as u64));
         self.ip += 2;
         None
     }
@@ -128,21 +128,22 @@ impl Computer {
     }
 
     fn opcode(&self) -> OpCode {
-        assert!(self.registers.ip < (self.memory.len() - 1) as u64);
         OpCode::from(
             self.memory[self.registers.ip as usize],
             self.memory[self.registers.ip as usize + 1],
         )
     }
 
-    fn run(&mut self) -> Vec<u8> {
+    fn run(&mut self) -> (Vec<u8>, usize) {
         let mut output = Vec::new();
+        let mut num_instructions = 0usize;
         while self.registers.ip < (self.memory.len() - 1) as u64 {
             if let Some(out) = self.registers.run(self.opcode()) {
                 output.push(out);
             }
+            num_instructions += 1;
         }
-        output
+        (output, num_instructions)
     }
     fn parse(input: &str) -> Computer {
         let mut sections = input.split("\n\n");
@@ -176,7 +177,7 @@ impl Computer {
 
 pub fn part1(input: &str) -> String {
     let mut computer = Computer::parse(input);
-    let output = computer.run();
+    let (output, _num_instructions) = computer.run();
     output
         .iter()
         .map(|v| v.to_string())
@@ -184,9 +185,60 @@ pub fn part1(input: &str) -> String {
         .join(",")
 }
 
-pub fn part2(input: &str) -> usize {
-    let computer = Computer::parse(input);
-    0
+pub fn part2_fail(input: &str) -> u64 {
+    let mut computer = Computer::parse(input);
+    let num_digits = computer.memory.len();
+    let min_a = 8u64.pow(num_digits as u32 - 1);
+    let mut a = min_a;
+    let mut offset = min_a;
+    let mut last_digit = 0;
+    for j in (0..num_digits).rev() {
+        let match_digit = computer.memory[j];
+        for i in 0..200 {
+            computer.registers = Registers::new(0, a, 0, 0);
+            let (output, num_instr) = computer.run();
+            last_digit = output[j];
+            if last_digit == match_digit {
+                println!(
+                    "{a}: {num_instr} => {:?} ... matched@{j}x{i}={match_digit}",
+                    output
+                );
+                offset /= 8;
+                break;
+            }
+            println!("{a}: {num_instr} => {:?}", output);
+            a += offset;
+        }
+    }
+    a
+}
+
+pub fn part2(input: &str) -> u64 {
+    let mut computer = Computer::parse(input);
+    let num_digits = computer.memory.len();
+    let mut valid = vec![0u64];
+    for length in (0..num_digits).rev() {
+        let old_valid = valid.clone();
+        valid.clear();
+        for a in old_valid {
+            for offset in 0..8 {
+                let new_a = 8 * a + offset;
+                computer.registers = Registers::new(0, new_a, 0, 0);
+
+                let (output, _) = computer.run();
+                println!(
+                    "num={a}, newnum={new_a}, {:?}, {:?}",
+                    output,
+                    &computer.memory[length..]
+                );
+                if output == computer.memory[length..] {
+                    println!("match: {:?}", output);
+                    valid.push(new_a)
+                }
+            }
+        }
+    }
+    *valid.iter().min().unwrap()
 }
 
 #[cfg(test)]
@@ -194,10 +246,11 @@ mod tests {
 
     use super::*;
 
+    const INPUT: &str = include_str!("data/input");
     pub const TEST_INPUT: &str = include_str!("data/input_example");
     pub const TEST_ANSWER: &str = "4,6,3,5,6,3,5,2,1,0";
     pub const TEST_INPUT_2: &str = include_str!("data/input_example_2");
-    pub const TEST_ANSWER_2: usize = 117440;
+    pub const TEST_ANSWER_2: u64 = 117440;
 
     #[test]
     fn test_parse_input() {
@@ -217,18 +270,65 @@ mod tests {
     #[test]
     fn test_computer() {
         let mut computer = Computer::new(Registers::new(0, 0, 0, 9), vec![2, 6]);
-        let output = computer.run();
+        let _output = computer.run();
         assert_eq!(computer.registers, Registers::new(2, 0, 1, 9));
 
         let mut computer = Computer::new(Registers::new(0, 10, 0, 0), vec![5, 0, 5, 1, 5, 4]);
-        let output = computer.run();
+        let (output, _) = computer.run();
         assert_eq!(computer.registers, Registers::new(6, 10, 0, 0));
         assert_eq!(output, vec![0, 1, 2]);
 
         let mut computer = Computer::new(Registers::new(0, 2024, 0, 0), vec![0, 1, 5, 4, 3, 0]);
-        let output = computer.run();
+        let (output, _) = computer.run();
         assert_eq!(computer.registers, Registers::new(6, 0, 0, 0));
         assert_eq!(output, vec![4, 2, 5, 6, 7, 7, 7, 7, 3, 1, 0]);
+    }
+
+    #[test]
+    fn test_assumption() {
+        let mut computer = Computer::parse(INPUT);
+        let num_digits = computer.memory.len();
+        let min_a = 8u64.pow(num_digits as u32 - 1);
+        let a = min_a;
+        let mut offset = 1;
+        let mut last_digit = 0;
+        for j in 0..num_digits / 2 {
+            for i in 0..100 {
+                computer.registers = Registers::new(0, a + i * offset, 0, 0);
+                let (output, _) = computer.run();
+                println!(
+                    "j={j},i={i},offset={offset},a={},{:?}",
+                    a + i * offset,
+                    output
+                );
+                if i != 0 {
+                    //assert_ne!(last_digit, output[j]);
+                }
+                last_digit = output[j];
+            }
+            offset *= 8;
+        }
+    }
+
+    #[test]
+    fn test_sequence() {
+        let mut computer = Computer::parse(INPUT);
+        let num_digits = computer.memory.len();
+        let mut sequence = Vec::<u8>::new();
+        let digit = 10;
+        let min = 8u64.pow(digit);
+        for a in min..min + 100000 {
+            computer.registers = Registers::new(0, a * min, 0, 0);
+            let (output, _) = computer.run();
+            sequence.push(output[digit as usize]);
+        }
+
+        let test_len = 100;
+        for m in 1..sequence.len() - test_len {
+            if (0..test_len).all(|i| sequence[i] == sequence[m + i]) {
+                println!("{test_len} sequence repeats at {m}");
+            }
+        }
     }
 
     #[test]
