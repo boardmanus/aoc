@@ -54,6 +54,16 @@ impl Dir4 {
             Dir4::W => 3,
         }
     }
+
+    pub fn from(i: usize) -> Dir4 {
+        match i % 4 {
+            0 => Dir4::N,
+            1 => Dir4::E,
+            2 => Dir4::S,
+            3 => Dir4::W,
+            _ => panic!(),
+        }
+    }
 }
 
 impl Dir<Dir4> for Dir4 {
