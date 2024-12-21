@@ -1,10 +1,13 @@
-use crate::dir::{Dir, Dir4, Dir8};
+use crate::{dir::{Dir, Dir4, Dir8, DirVec}, pos2d::Pos2d};
 use std::{
     cmp::Ordering,
     fmt::Display,
     ops::{Add, Sub},
     slice::Iter,
 };
+
+type GridPos = Pos2d<i64>;
+type GridVec = DirVec;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
@@ -64,6 +67,22 @@ impl Add<Dir4> for Index {
 
     fn add(self, rhs: Dir4) -> Self::Output {
         self + Index::dir4(rhs)
+    }
+}
+
+impl Add<Dir8> for GridPos {
+    type Output = GridPos;
+
+    fn add(self, rhs: Dir8) -> Self::Output {
+        self + rhs
+    }
+}
+
+impl Add<Dir4> for GridPos {
+    type Output = Index;
+
+    fn add(self, rhs: Dir4) -> Self::Output {
+        self + rhs
     }
 }
 
@@ -261,10 +280,21 @@ impl<Item: Copy + Eq> Grid<Item> {
     pub fn is_valid(&self, index: Index) -> bool {
         index.0 >= 0 && index.0 < self.width as i64 && index.1 >= 0 && index.1 < self.height as i64
     }
+    pub fn is_valid_pos(&self, index: &GridPos) -> bool {
+        index.x >= 0 && index.x < self.width as i64 && index.y >= 0 && index.y < self.height as i64
+    }
 
     pub fn at(&self, index: Index) -> Option<Item> {
         if self.is_valid(index) {
-            Some(self.g[(index.0 as usize) + (index.1 as usize) * self.width])
+            Some(self.g[self.i_from(index)])
+        } else {
+            None
+        }
+    }
+
+    pub fn at_pos(&self, index: &GridPos) -> Option<Item> {
+        if self.is_valid_pos(index) {
+            Some(self.g[self.i_from_pos(&index)])
         } else {
             None
         }
@@ -273,13 +303,24 @@ impl<Item: Copy + Eq> Grid<Item> {
     pub fn index_from(&self, i: usize) -> Index {
         Index((i % self.width) as i64, (i / self.width) as i64)
     }
+    pub fn pos_from(&self, i: usize) -> GridPos {
+        GridPos::new((i % self.width) as i64, (i / self.width) as i64)
+    }
 
     fn i_from(&self, index: Index) -> usize {
         (index.0 as usize) + (index.1 as usize) * self.width
     }
 
+    fn i_from_pos(&self, index: &GridPos) -> usize {
+        (index.x as usize) + (index.y as usize) * self.width
+    }
+
     pub fn set(&mut self, index: Index, val: Item) {
         let i = self.i_from(index);
+        self.g[i] = val;
+    }
+    pub fn set_pos(&mut self, index: &GridPos, val: Item) {
+        let i = self.i_from_pos(index);
         self.g[i] = val;
     }
 
@@ -292,13 +333,30 @@ impl<Item: Copy + Eq> Grid<Item> {
             }
         })
     }
+    pub fn find_pos(&self, c: Item) -> Option<GridPos> {
+        self.g.iter().enumerate().find_map(|(i, &val)| {
+            if val == c {
+                Some(self.pos_from(i))
+            } else {
+                None
+            }
+        })
+    }
 
     pub fn matches(&self, index: Index, c: Item) -> bool {
         self.at(index) == Some(c)
     }
 
+    pub fn matches_pos(&self, index: &GridPos, c: Item) -> bool {
+        self.at_pos(index) == Some(c)
+    }
+
     pub fn around(&self, index: Index) -> Vec<Index> {
         Dir8::cw().map(|d| index + d).collect()
+    }
+
+    pub fn around_pos(&self, index: &GridPos) -> Vec<GridPos> {
+        Dir8::cw().map(|d| *index + d).collect()
     }
 
     pub fn filter_pos(&self, c: Item) -> Vec<Index> {
@@ -308,6 +366,19 @@ impl<Item: Copy + Eq> Grid<Item> {
             .filter(|&(_i, &c2)| c == c2)
             .map(|(i, _c)| {
                 Index(
+                    i.rem_euclid(self.width) as i64,
+                    i.div_euclid(self.width) as i64,
+                )
+            })
+            .collect()
+        }
+    pub fn filter_items(&self, c: Item) -> Vec<GridPos> {
+        self.g
+            .iter()
+            .enumerate()
+            .filter(|&(_i, &c2)| c == c2)
+            .map(|(i, _c)| {
+                GridPos::new(
                     i.rem_euclid(self.width) as i64,
                     i.div_euclid(self.width) as i64,
                 )
