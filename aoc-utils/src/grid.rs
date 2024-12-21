@@ -6,7 +6,7 @@ use std::{
     slice::Iter,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
 
 impl Index {
@@ -35,18 +35,10 @@ impl Index {
 
 impl PartialOrd for Index {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.1 < other.1 {
-            Some(Ordering::Less)
-        } else if self.1 > other.1 {
-            Some(Ordering::Greater)
+        if self.1 == other.1 {
+            Some(self.0.cmp(&other.0))
         } else {
-            if self.0 < other.0 {
-                Some(Ordering::Less)
-            } else if self.0 > other.0 {
-                Some(Ordering::Greater)
-            } else {
-                Some(Ordering::Equal)
-            }
+            Some(self.1.cmp(&other.1))
         }
     }
 }
@@ -108,7 +100,7 @@ impl<'a, Item: Copy + Eq> GridIndexIter<'a, Item> {
         let grid_iter = GridIter::<Item> {
             grid,
             iter_type,
-            i: if grid.g.len() > 0 { Some(0) } else { None },
+            i: if grid.g.is_empty() { None } else { Some(0) },
         };
         GridIndexIter { grid_iter }
     }
@@ -138,7 +130,7 @@ impl<'a, Item: Copy + Eq> GridIter<'a, Item> {
         GridIter::<Item> {
             grid,
             iter_type,
-            i: if grid.g.len() > 0 { Some(0) } else { None },
+            i: if grid.g.is_empty() { None } else { Some(0) },
         }
     }
 
