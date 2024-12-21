@@ -1,7 +1,10 @@
-use std::{cmp::Ordering, ops::{Add, Sub}};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Sub},
+};
 
 use approx::AbsDiffEq;
-use num_traits::{Float, FromPrimitive, Num, PrimInt};
+use num_traits::{Float, FromPrimitive, Num, PrimInt, Signed};
 
 use crate::vec2d::Vec2d;
 
@@ -14,6 +17,12 @@ pub struct Pos2d<Scalar: Num> {
 impl<Scalar: Num> Pos2d<Scalar> {
     pub fn new(x: Scalar, y: Scalar) -> Pos2d<Scalar> {
         Pos2d { x, y }
+    }
+}
+
+impl<Scalar: Num + Signed + Copy> Pos2d<Scalar> {
+    pub fn taxi_distance(&self, other: &Self) -> Scalar {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
     }
 }
 

@@ -1,4 +1,7 @@
-use crate::{dir::{Dir, Dir4, Dir8, DirVec}, pos2d::Pos2d};
+use crate::{
+    dir::{Dir, Dir4, Dir8, DirVec},
+    pos2d::Pos2d,
+};
 use std::{
     cmp::Ordering,
     fmt::Display,
@@ -6,8 +9,8 @@ use std::{
     slice::Iter,
 };
 
-type GridPos = Pos2d<i64>;
-type GridVec = DirVec;
+pub type GridPos = Pos2d<i64>;
+pub type GridVec = DirVec;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Index(pub i64, pub i64);
@@ -74,15 +77,15 @@ impl Add<Dir8> for GridPos {
     type Output = GridPos;
 
     fn add(self, rhs: Dir8) -> Self::Output {
-        self + rhs
+        self + rhs.to_vec2d()
     }
 }
 
 impl Add<Dir4> for GridPos {
-    type Output = Index;
+    type Output = GridPos;
 
     fn add(self, rhs: Dir4) -> Self::Output {
-        self + rhs
+        self + rhs.to_vec2d()
     }
 }
 
@@ -371,7 +374,7 @@ impl<Item: Copy + Eq> Grid<Item> {
                 )
             })
             .collect()
-        }
+    }
     pub fn filter_items(&self, c: Item) -> Vec<GridPos> {
         self.g
             .iter()
