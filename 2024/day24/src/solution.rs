@@ -260,7 +260,7 @@ pub fn part2(input: &str) -> String {
             .unwrap();
         if !gate_zi.has_output(&zi) {
             swappies.insert(zi.to_string());
-            swappies.insert(gate_zi_.out.to_string());
+            swappies.insert(gate_zi.out.to_string());
         }
         if !gate_zi.has_input(gate_zi_.out) {
             swappies.insert(gate_zi_.out.to_string());
