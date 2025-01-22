@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 aoc-utils = { path = "../../aoc-utils" }
+graphviz-rust = "0.9.3"
 lazy-regex = "3.3.0"

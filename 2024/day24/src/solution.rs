@@ -4,14 +4,41 @@ type Wire = str;
 type Wires<'a> = HashMap<&'a str, usize>;
 type OpType = fn(usize, usize) -> usize;
 
-fn and_op(a: usize, b: usize) -> usize {
-    a & b
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum Op {
+    And,
+    Or,
+    Xor,
 }
-fn or_op(a: usize, b: usize) -> usize {
-    a | b
-}
-fn xor_op(a: usize, b: usize) -> usize {
-    a ^ b
+
+impl Op {
+    const AND: &str = "AND";
+    const OR: &str = "OR";
+    const XOR: &str = "XOR";
+
+    fn parse(input: &str) -> Option<Op> {
+        match input {
+            Op::AND => Some(Op::And),
+            Op::OR => Some(Op::Or),
+            Op::XOR => Some(Op::Xor),
+            _ => None,
+        }
+    }
+    fn op(&self, a: usize, b: usize) -> usize {
+        match self {
+            Op::And => a & b,
+            Op::Or => a | b,
+            Op::Xor => a ^ b,
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Op::And => Op::AND,
+            Op::Or => Op::OR,
+            Op::Xor => Op::XOR,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -19,14 +46,14 @@ struct Gate<'a> {
     in0: &'a Wire,
     in1: &'a Wire,
     out: &'a Wire,
-    op: fn(usize, usize) -> usize,
+    op: Op,
 }
 
 impl<'a> Gate<'a> {
     fn apply(&self, wires: &Wires) -> Option<(&str, usize)> {
         let &a = wires.get(self.in0)?;
         let &b = wires.get(self.in1)?;
-        Some((self.out, (self.op)(a, b)))
+        Some((self.out, self.op.op(a, b)))
     }
 
     fn has_input(&self, input: &str) -> bool {
@@ -84,12 +111,7 @@ impl<'a> Device<'a> {
             .map(|line| {
                 let mut it = line.split_whitespace();
                 let a = it.next().unwrap();
-                let op = match it.next().unwrap() {
-                    "AND" => and_op,
-                    "OR" => or_op,
-                    "XOR" => xor_op,
-                    _ => panic!(),
-                };
+                let op = Op::parse(it.next().unwrap()).unwrap();
                 let b = it.next().unwrap();
                 let _ = it.next();
                 let x = it.next().unwrap();
@@ -123,13 +145,13 @@ impl<'a> Device<'a> {
         Device::new(wires, gates)
     }
 
-    fn gate_with_inputs(&self, op: OpType, i0: &str, i1: &str) -> Option<&Gate<'a>> {
+    fn gate_with_inputs(&self, op: Op, i0: &str, i1: &str) -> Option<&Gate<'a>> {
         self.gates
             .iter()
             .find(|g| g.op == op && g.has_input(i0) && g.has_input(i1))
     }
 
-    fn gate_with_any_inputs(&self, op: OpType, i0: &str, i1: &str) -> Option<&Gate<'a>> {
+    fn gate_with_any_inputs(&self, op: Op, i0: &str, i1: &str) -> Option<&Gate<'a>> {
         assert_eq!(
             self.gates
                 .iter()
@@ -217,7 +239,6 @@ fn print_info<'a>(device: &Device<'a>) {
 
 pub fn part2(input: &str) -> String {
     let device = Device::parse(input);
-    print_info(&device);
 
     // The circuit results in the addition of x + y.
     // Addition can be implemented in terms of xor, and, or.
@@ -236,13 +257,13 @@ pub fn part2(input: &str) -> String {
     //
     // There is no carry input for bit0, so handle it separately.
     let mut swappies = HashSet::<String>::new();
-    let gate_z0 = device.gate_with_inputs(xor_op, "x00", "y00").unwrap();
+    let gate_z0 = device.gate_with_inputs(Op::Xor, "x00", "y00").unwrap();
     if !gate_z0.has_output("z00") {
         swappies.insert("z00".to_string());
     }
 
     // Determine the initial carry after bit0
-    let gate_c1_ = device.gate_with_inputs(and_op, "x00", "y00").unwrap();
+    let gate_c1_ = device.gate_with_inputs(Op::And, "x00", "y00").unwrap();
     // gate_c0_ not defined for z0
     let mut gate_ci = gate_c1_;
 
@@ -252,11 +273,11 @@ pub fn part2(input: &str) -> String {
         let zi = format!("z{bit:02}");
 
         // 1.) z'i = xi ^ yi
-        let gate_zi_ = device.gate_with_inputs(xor_op, &xi, &yi).unwrap();
+        let gate_zi_ = device.gate_with_inputs(Op::Xor, &xi, &yi).unwrap();
 
         // 2.) zi = z'i ^ ci
         let gate_zi = device
-            .gate_with_any_inputs(xor_op, gate_zi_.out, gate_ci.out)
+            .gate_with_any_inputs(Op::Xor, gate_zi_.out, gate_ci.out)
             .unwrap();
         if !gate_zi.has_output(&zi) {
             swappies.insert(zi.to_string());
@@ -270,11 +291,11 @@ pub fn part2(input: &str) -> String {
         }
 
         // 3.) c'o = xi & yi
-        let gate_co_ = device.gate_with_inputs(and_op, &xi, &yi).unwrap();
+        let gate_co_ = device.gate_with_inputs(Op::And, &xi, &yi).unwrap();
 
         // 4.) c'i = ci & z'i
         let gate_ci_ = device
-            .gate_with_any_inputs(and_op, gate_ci.out, gate_zi_.out)
+            .gate_with_any_inputs(Op::And, gate_ci.out, gate_zi_.out)
             .unwrap();
         if !gate_ci_.has_input(gate_ci.out) {
             swappies.insert(gate_ci.out.to_string());
@@ -285,7 +306,7 @@ pub fn part2(input: &str) -> String {
 
         // 5.) co = c'o | c'i
         let gate_co = device
-            .gate_with_any_inputs(or_op, gate_co_.out, gate_ci_.out)
+            .gate_with_any_inputs(Op::Or, gate_co_.out, gate_ci_.out)
             .unwrap();
         if !gate_co.has_input(gate_co_.out) {
             swappies.insert(gate_co_.out.to_string());
@@ -309,7 +330,17 @@ pub fn part2(input: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    use std::fs;
+
     use super::*;
+
+    use graphviz_rust::{
+        cmd::Format,
+        dot_generator::*,
+        dot_structures::*,
+        exec,
+        printer::{DotPrinter, PrinterContext},
+    };
 
     pub const TEST_INPUT: &str = include_str!("data/input_example");
     pub const TEST_ANSWER: usize = 4;
@@ -327,5 +358,34 @@ mod tests {
     #[test]
     fn test_part2() {
         assert_eq!(part2(TEST_INPUT_3), TEST_ANSWER_3);
+    }
+
+    #[test]
+    fn test_graphviz() {
+        let device = Device::parse(include_str!("data/input"));
+        let stmts: Vec<Stmt> =
+            device
+                .gates
+                .iter()
+                .enumerate()
+                .fold(vec![], |mut stmts, (sub, gate)| {
+                    let op_name = format!("{}{sub}", gate.op.name());
+                    let op_label = format!("<{}<SUB>{sub}</SUB>>", gate.op.name());
+                    let op_node = node!(op_name;attr!("label", op_label));
+
+                    stmts.push(Stmt::Node(op_node));
+                    stmts.push(Stmt::Edge(edge!(node_id!(gate.in0) => node_id!(op_name))));
+                    stmts.push(Stmt::Edge(edge!(node_id!(gate.in1) => node_id!(op_name))));
+                    stmts.push(Stmt::Edge(edge!(node_id!(op_name) => node_id!(gate.out))));
+                    stmts
+                });
+        let g = Graph::DiGraph {
+            id: id!("adder"),
+            strict: false,
+            stmts,
+        };
+
+        let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()]).unwrap();
+        fs::write("graph.svg", graph_svg).expect("Unable to write file");
     }
 }
