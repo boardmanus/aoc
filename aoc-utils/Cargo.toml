@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 approx = "0.5.1"
 enum-iterator = "2.1.0"
+graphviz-rust = "0.9.3"
 num-traits = "0.2.19"

@@ -4,6 +4,9 @@ use std::fmt::Display;
 use std::hash::Hash;
 use std::slice::Iter;
 
+use graphviz_rust::dot_generator::*;
+use graphviz_rust::dot_structures as dots;
+
 #[derive(Debug)]
 pub struct Node<Id, Weight> {
     pub id: Id,
@@ -27,6 +30,14 @@ impl<Id: PartialEq, Weight> Node<Id, Weight> {
     }
 }
 
+impl<Id: ToString, Weight> Node<Id, Weight> {
+    pub fn to_viz(&self) -> dots::Node {
+        use graphviz_rust::dot_structures::*;
+        let node = node!(self.id.to_string());
+        node
+    }
+}
+
 #[derive(Debug)]
 pub struct Edge<Id, Weight> {
     a: Id,
@@ -37,6 +48,14 @@ pub struct Edge<Id, Weight> {
 impl<Id, Weight> Edge<Id, Weight> {
     pub fn new(a: Id, b: Id, weight: Weight) -> Edge<Id, Weight> {
         Edge { a, b, weight }
+    }
+}
+
+impl<Id: ToString, Weight> Edge<Id, Weight> {
+    pub fn to_viz(&self) -> dots::Edge {
+        use graphviz_rust::dot_structures::*;
+        let node = edge!(node_id!(self.a.to_string()) => node_id!(self.b.to_string()));
+        node
     }
 }
 
@@ -99,6 +118,29 @@ impl<Id: Display, Weight: Display> Display for Graph<Id, Weight> {
             write!(f, "<{}>[{}]", id, edges)?;
         }
         Ok(())
+    }
+}
+
+impl<Id: ToString, Weight> Graph<Id, Weight> {
+    pub fn to_viz(&self, name: &str, digraph: bool) -> dots::Graph {
+        use graphviz_rust::dot_structures::*;
+        let stmts = self
+            .edges()
+            .map(|e| dots::Stmt::Edge(e.to_viz()))
+            .collect::<Vec<_>>();
+        if digraph {
+            dots::Graph::DiGraph {
+                id: id!(name),
+                strict: true,
+                stmts,
+            }
+        } else {
+            dots::Graph::Graph {
+                id: id!(name),
+                strict: true,
+                stmts,
+            }
+        }
     }
 }
 
