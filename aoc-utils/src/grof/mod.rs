@@ -1,7 +1,7 @@
 pub mod algorithms;
 pub mod simple;
 
-pub trait Node<'a, Id: Eq, Weight> {
+pub trait Node<'a, Id: Eq + 'a, Weight: 'a> {
     type Edge: Edge<Id, Weight> + 'a;
 
     fn id(&self) -> Id;
@@ -14,6 +14,10 @@ pub trait Node<'a, Id: Eq, Weight> {
     fn degree(&'a self) -> usize {
         self.edges().count()
     }
+
+    fn neighbours(&'a self) -> impl Iterator<Item = Id> + 'a {
+        self.edges().map(move |e| e.b())
+    }
 }
 
 pub trait Edge<Id, Weight> {
@@ -22,7 +26,7 @@ pub trait Edge<Id, Weight> {
     fn b(&self) -> Id;
 }
 
-pub trait Graph<'a, Id: Eq, Weight> {
+pub trait Graph<'a, Id: Eq + 'a, Weight: 'a> {
     type Node: Node<'a, Id, Weight> + 'a;
 
     fn node(&self, id: &Id) -> Option<&Self::Node>;
@@ -32,7 +36,7 @@ pub trait Graph<'a, Id: Eq, Weight> {
     }
 }
 
-pub trait Builder<'a, Id: Clone + Eq, Weight: Clone> {
+pub trait Builder<'a, Id: Clone + Eq + 'a, Weight: Clone + 'a> {
     type Graph: Graph<'a, Id, Weight>;
 
     fn add_node(&mut self, id: Id) -> &mut <Self::Graph as Graph<'a, Id, Weight>>::Node;

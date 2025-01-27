@@ -21,7 +21,7 @@ fn backtrack_cycle<'a, Id: Copy + Eq + Hash>(
     cycle
 }
 
-pub fn find_cycles_from_r<'a, Id: Copy + Eq + Hash, Weight>(
+pub fn find_cycles_from_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
     id: Id,
     from_id: Option<Id>,
@@ -55,7 +55,7 @@ pub fn find_cycles_from_r<'a, Id: Copy + Eq + Hash, Weight>(
     }
 }
 
-pub fn find_cycles<'a, Id: Copy + Eq + Hash, Weight>(
+pub fn find_cycles<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
     cycle_size: usize,
 ) -> Vec<Vec<Id>> {
@@ -76,45 +76,80 @@ pub fn find_cycles<'a, Id: Copy + Eq + Hash, Weight>(
     all_cycles
 }
 
-fn find_maximal_clique_r<'a, Id: Copy + Eq + Hash, Weight>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-    r: &[Id],
-    clique: &Vec<Id>,
-) -> Vec<Id> {
-    let mut new_clique = clique.clone();
-    let v = graph.node(&r[0]).unwrap();
-    if v.degree() >= clique.len() {
-        if clique.iter().all(|&id| v.is_adjacent(id)) {
-            let rest = &r[1..];
-            new_clique.push(v.id());
-            if rest.len() > 0 {
-                let mut max = vec![];
-                for i in 0..rest.len() {
-                    let new_max = find_maximal_clique_r(graph, &rest[i..], &new_clique);
-                    if new_max.len() > max.len() {
-                        max = new_max;
-                    }
-                }
-                return max;
-            }
+fn union<Id: Copy + PartialEq>(a: &[Id], b: &[Id]) -> Vec<Id> {
+    let mut union = Vec::from(a);
+    for &id in b {
+        if !union.contains(&id) {
+            union.push(id);
         }
     }
-    new_clique
+    union
 }
+
+fn intersection<Id: Copy + PartialEq>(a: &[Id], b: &[Id]) -> Vec<Id> {
+    let mut intersection = vec![];
+    for &id in a {
+        if b.contains(&id) {
+            intersection.push(id);
+        }
+    }
+    intersection
+}
+
+// Bron-Kerbosch algorithm
 // Find the maximal clique at a vertice in the graph.
 // A clique is maximal if and only if it is not a subgraph of another clique in the graph.
 // Note: A clique is a complete subgraph of the graph.
-pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash, Weight>(
+//
+// algorithm BronKerbosch1(R, P, X) is
+// if P and X are both empty then
+//     report R as a maximal clique
+// for each vertex v in P do
+//     BronKerbosch1(R ⋃ {v}, P ⋂ N(v), X ⋂ N(v))
+//     P := P \ {v}
+//     X := X ⋃ {v}
+fn find_maximal_clique_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
+    graph: &'a impl Graph<'a, Id, Weight>,
+    r: &[Id],
+    p: &[Id],
+    x: &[Id],
+) -> Option<Vec<Id>> {
+    let mut max_clique = r.to_vec();
+    if p.is_empty() && x.is_empty() {
+        return Some(max_clique);
+    }
+
+    let mut p2 = p.to_vec();
+    let mut x2 = x.to_vec();
+    for &v in p {
+        let n = graph.node(&v)?.neighbours().collect::<Vec<_>>();
+        let clique = find_maximal_clique_r(
+            graph,
+            &union(r, &[v]),
+            &intersection(&p2, &n),
+            &intersection(&x2, &n),
+        )?;
+        if clique.len() > max_clique.len() {
+            max_clique = clique;
+        }
+        p2.retain(|x| *x != v);
+        x2.push(v);
+    }
+
+    Some(max_clique)
+}
+
+// Find the maximal clique at a vertice in the graph.
+// A clique is maximal if and only if it is not a subgraph of another clique in the graph.
+// Note: A clique is a complete subgraph of the graph.
+pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
     node_id: Id,
-) -> Vec<Id> {
-    if let Some(node) = graph.node(&node_id) {
-        let mut clique = vec![node_id];
-        let r = node.edges().map(|e| e.b()).collect::<Vec<_>>();
-        find_maximal_clique_r(graph, &r, &mut clique)
-    } else {
-        vec![]
-    }
+) -> Option<Vec<Id>> {
+    let r = [node_id];
+    let p = graph.node(&node_id)?.neighbours().collect::<Vec<_>>();
+    let x = [node_id];
+    find_maximal_clique_r(graph, &r, &p, &x)
 }
 
 // Find the maximum clique in the graph.
@@ -122,19 +157,19 @@ pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash, Weight>(
 // other clique in the graph.
 // Note: the clique number of the graph is the number of vertices in the maximu cli
 // Note: A clique is a complete subgraph of the graph.
-pub fn find_maximum_clique<'a, Id: Copy + Eq + Hash, Weight>(
+pub fn find_maximum_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
-) -> Vec<Id> {
+) -> Option<Vec<Id>> {
     let mut max = vec![];
     for node in graph.nodes() {
         if node.degree() >= max.len() {
-            let new_max = find_maximal_clique(graph, node.id());
-            if new_max.len() > max.len() {
-                max = new_max;
+            let clique = find_maximal_clique(graph, node.id())?;
+            if clique.len() > max.len() {
+                max = clique;
             }
         }
     }
-    max
+    Some(max)
 }
 
 #[cfg(test)]
@@ -148,19 +183,19 @@ mod tests {
     fn test_find_maximal_clique() {
         let g = SimpleGraphBuilder::parse("a-b\na-c\na-d\nb-c\nb-d\na-e\nb-e\nc-e", "-").unwrap();
         println!("{}", g);
-        let mut max = find_maximal_clique(&g, "a");
+        let mut max = find_maximal_clique(&g, "a").unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
-        max = find_maximal_clique(&g, "b");
+        max = find_maximal_clique(&g, "b").unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
-        max = find_maximal_clique(&g, "c");
+        max = find_maximal_clique(&g, "c").unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
-        max = find_maximal_clique(&g, "d");
+        max = find_maximal_clique(&g, "d").unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "d"]);
-        max = find_maximal_clique(&g, "c");
+        max = find_maximal_clique(&g, "c").unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
     }
@@ -168,7 +203,7 @@ mod tests {
     #[test]
     fn test_find_maximum_clique() {
         let g = SimpleGraphBuilder::parse("a-b\na-c\na-d\nb-c\nb-d\na-e\nb-e\nc-e", "-").unwrap();
-        let mut max = find_maximum_clique(&g);
+        let mut max = find_maximum_clique(&g).unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
     }
