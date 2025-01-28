@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+
+use num_traits::ops::checked;
 
 use super::{Edge, Graph, Node};
 
@@ -76,24 +78,42 @@ pub fn find_cycles<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     all_cycles
 }
 
-fn union<Id: Copy + PartialEq>(a: &[Id], b: &[Id]) -> Vec<Id> {
-    let mut union = Vec::from(a);
-    for &id in b {
-        if !union.contains(&id) {
-            union.push(id);
-        }
-    }
-    union
+trait SetOps<Id: Eq + Clone + Copy> {
+    fn union(&self, other: &[Id]) -> Vec<Id>;
+    fn difference(&self, other: &[Id]) -> Vec<Id>;
+    fn intersection(&self, other: &[Id]) -> Vec<Id>;
 }
 
-fn intersection<Id: Copy + PartialEq>(a: &[Id], b: &[Id]) -> Vec<Id> {
-    let mut intersection = vec![];
-    for &id in a {
-        if b.contains(&id) {
-            intersection.push(id);
+impl<Id: Eq + Clone + Copy> SetOps<Id> for Vec<Id> {
+    fn union(&self, other: &[Id]) -> Vec<Id> {
+        let mut union = self.clone();
+        for &id in other {
+            if !union.contains(&id) {
+                union.push(id);
+            }
         }
+        union
     }
-    intersection
+
+    fn difference(&self, other: &[Id]) -> Vec<Id> {
+        let mut diff = vec![];
+        for id in self {
+            if !other.contains(id) {
+                diff.push(*id);
+            }
+        }
+        diff
+    }
+
+    fn intersection(&self, other: &[Id]) -> Vec<Id> {
+        let mut intersection = vec![];
+        for id in self {
+            if other.contains(id) {
+                intersection.push(*id);
+            }
+        }
+        intersection
+    }
 }
 
 // Bron-Kerbosch algorithm
@@ -110,24 +130,24 @@ fn intersection<Id: Copy + PartialEq>(a: &[Id], b: &[Id]) -> Vec<Id> {
 //     X := X ⋃ {v}
 fn find_maximal_clique_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
-    r: &[Id],
-    p: &[Id],
-    x: &[Id],
+    r: Vec<Id>,
+    p: Vec<Id>,
+    x: Vec<Id>,
 ) -> Option<Vec<Id>> {
-    let mut max_clique = r.to_vec();
     if p.is_empty() && x.is_empty() {
-        return Some(max_clique);
+        return Some(r);
     }
 
-    let mut p2 = p.to_vec();
-    let mut x2 = x.to_vec();
-    for &v in p {
+    let mut max_clique = r;
+    let mut p2 = p.clone();
+    let mut x2 = x;
+    for v in p {
         let n = graph.node(&v)?.neighbours().collect::<Vec<_>>();
         let clique = find_maximal_clique_r(
             graph,
-            &union(r, &[v]),
-            &intersection(&p2, &n),
-            &intersection(&x2, &n),
+            max_clique.union(&[v]),
+            p2.intersection(&n),
+            x2.intersection(&n),
         )?;
         if clique.len() > max_clique.len() {
             max_clique = clique;
@@ -146,10 +166,10 @@ pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
     node_id: Id,
 ) -> Option<Vec<Id>> {
-    let r = [node_id];
+    let r = vec![node_id];
     let p = graph.node(&node_id)?.neighbours().collect::<Vec<_>>();
-    let x = [node_id];
-    find_maximal_clique_r(graph, &r, &p, &x)
+    let x = vec![node_id];
+    find_maximal_clique_r(graph, r, p, x)
 }
 
 // Find the maximum clique in the graph.
@@ -161,9 +181,11 @@ pub fn find_maximum_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     graph: &'a impl Graph<'a, Id, Weight>,
 ) -> Option<Vec<Id>> {
     let mut max = vec![];
+    let mut checked: HashSet<Id> = HashSet::new();
     for node in graph.nodes() {
-        if node.degree() >= max.len() {
+        if node.degree() >= max.len() && !checked.contains(&node.id()) {
             let clique = find_maximal_clique(graph, node.id())?;
+            checked.extend(clique.iter());
             if clique.len() > max.len() {
                 max = clique;
             }
@@ -206,5 +228,13 @@ mod tests {
         let mut max = find_maximum_clique(&g).unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
+    }
+
+    #[test]
+    fn test_difference() {
+        let a = vec![1, 2, 3, 4, 5];
+        let b = [2, 4, 6];
+        let diff = a.difference(&b);
+        assert_eq!(diff, vec![1, 3, 5]);
     }
 }
