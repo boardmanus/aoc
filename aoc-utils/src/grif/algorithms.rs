@@ -1,15 +1,11 @@
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
-
-use num_traits::ops::checked;
-
 use super::{Edge, Graph, Node};
+use std::collections::{HashMap, HashSet};
 
-fn backtrack_cycle<'a, Id: Copy + Eq + Hash>(
-    id: Id,
-    from_id: Id,
-    visited: &HashMap<Id, Option<Id>>,
-) -> Vec<Id> {
+fn backtrack_cycle<'a, G: Graph<'a>>(
+    id: G::Id,
+    from_id: G::Id,
+    visited: &HashMap<G::Id, Option<G::Id>>,
+) -> Vec<G::Id> {
     let mut cycle = vec![id];
     let mut from_id = from_id;
     while let Some(maybe_from) = visited.get(&from_id) {
@@ -23,19 +19,19 @@ fn backtrack_cycle<'a, Id: Copy + Eq + Hash>(
     cycle
 }
 
-pub fn find_cycles_from_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-    id: Id,
-    from_id: Option<Id>,
-    start_id: Id,
+pub fn find_cycles_from_r<'a, G: Graph<'a>>(
+    graph: &'a G,
+    id: G::Id,
+    from_id: Option<G::Id>,
+    start_id: G::Id,
     level: usize,
-    visited: &mut HashMap<Id, Option<Id>>,
-    cycles: &mut Vec<Vec<Id>>,
+    visited: &mut HashMap<G::Id, Option<G::Id>>,
+    cycles: &mut Vec<Vec<G::Id>>,
 ) {
     let node = graph.node(&id).unwrap();
     if level == 0 {
         if node.is_adjacent(start_id) {
-            cycles.push(backtrack_cycle(id, from_id.unwrap(), visited));
+            cycles.push(backtrack_cycle::<G>(id, from_id.unwrap(), visited));
         }
     } else {
         let mut visited_r = visited.clone();
@@ -57,12 +53,9 @@ pub fn find_cycles_from_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     }
 }
 
-pub fn find_cycles<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-    cycle_size: usize,
-) -> Vec<Vec<Id>> {
-    let mut visited: HashMap<Id, Option<Id>> = HashMap::new();
-    let mut all_cycles: Vec<Vec<Id>> = vec![];
+pub fn find_cycles<'a, G: Graph<'a>>(graph: &'a G, cycle_size: usize) -> Vec<Vec<G::Id>> {
+    let mut visited: HashMap<G::Id, Option<G::Id>> = HashMap::new();
+    let mut all_cycles: Vec<Vec<G::Id>> = vec![];
     graph.nodes().for_each(|node| {
         visited.insert(node.id(), None);
         find_cycles_from_r(
@@ -128,12 +121,12 @@ impl<Id: Eq + Clone + Copy> SetOps<Id> for Vec<Id> {
 //     BronKerbosch1(R ⋃ {v}, P ⋂ N(v), X ⋂ N(v))
 //     P := P \ {v}
 //     X := X ⋃ {v}
-fn find_maximal_clique_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-    r: Vec<Id>,
-    p: Vec<Id>,
-    x: Vec<Id>,
-) -> Option<Vec<Id>> {
+fn find_maximal_clique_r<'a, G: Graph<'a>>(
+    graph: &'a G,
+    r: Vec<G::Id>,
+    p: Vec<G::Id>,
+    x: Vec<G::Id>,
+) -> Option<Vec<G::Id>> {
     if p.is_empty() && x.is_empty() {
         return Some(r);
     }
@@ -162,10 +155,7 @@ fn find_maximal_clique_r<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
 // Find the maximal clique at a vertice in the graph.
 // A clique is maximal if and only if it is not a subgraph of another clique in the graph.
 // Note: A clique is a complete subgraph of the graph.
-pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-    node_id: Id,
-) -> Option<Vec<Id>> {
+pub fn find_maximal_clique<'a, G: Graph<'a>>(graph: &'a G, node_id: G::Id) -> Option<Vec<G::Id>> {
     let r = vec![node_id];
     let p = graph.node(&node_id)?.neighbours().collect::<Vec<_>>();
     let x = vec![node_id];
@@ -177,11 +167,9 @@ pub fn find_maximal_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
 // other clique in the graph.
 // Note: the clique number of the graph is the number of vertices in the maximu cli
 // Note: A clique is a complete subgraph of the graph.
-pub fn find_maximum_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
-    graph: &'a impl Graph<'a, Id, Weight>,
-) -> Option<Vec<Id>> {
+pub fn find_maximum_clique<'a, G: Graph<'a>>(graph: &'a G) -> Option<Vec<G::Id>> {
     let mut max = vec![];
-    let mut checked: HashSet<Id> = HashSet::new();
+    let mut checked: HashSet<G::Id> = HashSet::new();
     for node in graph.nodes() {
         if node.degree() >= max.len() && !checked.contains(&node.id()) {
             let clique = find_maximal_clique(graph, node.id())?;
@@ -194,10 +182,32 @@ pub fn find_maximum_clique<'a, Id: Copy + Eq + Hash + 'a, Weight: 'a>(
     Some(max)
 }
 
+fn dfs_r<'a, G: Graph<'a>>(
+    graph: &'a G,
+    id: G::Id,
+    visited: &mut HashSet<G::Id>,
+    f: &mut dyn FnMut(&G::Node),
+) {
+    if visited.contains(&id) {
+        return;
+    }
+    visited.insert(id);
+    let node = graph.node(&id).unwrap();
+    f(node);
+    for edge in node.edges() {
+        dfs_r(graph, edge.b(), visited, f);
+    }
+}
+
+pub fn dfs<'a, G: Graph<'a>>(graph: &'a G, id: G::Id, f: &mut dyn FnMut(&G::Node)) {
+    let mut visited: HashSet<G::Id> = HashSet::new();
+    dfs_r(graph, id, &mut visited, f);
+}
+
 #[cfg(test)]
 mod tests {
 
-    use crate::grof::simple::SimpleGraphBuilder;
+    use crate::grif::simple::SimpleGraphBuilder;
 
     use super::*;
 

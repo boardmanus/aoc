@@ -9,13 +9,37 @@ use super::{Builder, Edge, Graph, Node};
 //#![feature(trait_alias)]
 //pub trait SimpleId = Eq + Hash + Copy;
 
-pub struct SimpleNode<Id: Eq + Hash, Weight: Eq + Hash> {
+pub struct SimpleNode<Id, Weight>
+where
+    Id: Copy + Eq + Hash,
+    Weight: Eq + Hash,
+{
     id: Id,
     edges: HashSet<SimpleEdge<Id, Weight>>,
 }
 
-impl<Id: Display + Eq + Hash + Copy, Weight: Display + Eq + Hash + Copy> Display
-    for SimpleNode<Id, Weight>
+impl<'a, Id, Weight> Node<'a> for SimpleNode<Id, Weight>
+where
+    Id: Eq + Hash + Copy + 'a,
+    Weight: Eq + Hash + Copy + 'a,
+{
+    type Id = Id;
+    type Weight = Weight;
+    type Edge = SimpleEdge<Id, Weight>;
+
+    fn id(&self) -> Id {
+        self.id
+    }
+
+    fn edges(&'a self) -> impl Iterator<Item = &'a Self::Edge> {
+        self.edges.iter()
+    }
+}
+
+impl<Id, Weight> Display for SimpleNode<Id, Weight>
+where
+    Id: Display + Eq + Hash + Copy,
+    Weight: Display + Eq + Hash + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}]:", self.id())?;
@@ -33,20 +57,49 @@ pub struct SimpleEdge<Id: Eq + Hash, Weight: Eq + Hash> {
     weight: Weight,
 }
 
-impl<Id: Display + Eq + Hash + Copy, Weight: Display + Eq + Hash + Copy> Display
-    for SimpleEdge<Id, Weight>
+impl<Id, Weight> Edge for SimpleEdge<Id, Weight>
+where
+    Id: Eq + Hash + Copy,
+    Weight: Eq + Hash + Copy,
+{
+    type Id = Id;
+    type Weight = Weight;
+
+    fn weight(&self) -> Weight {
+        self.weight
+    }
+
+    fn a(&self) -> Id {
+        self.a
+    }
+
+    fn b(&self) -> Id {
+        self.b
+    }
+}
+
+impl<Id, Weight> Display for SimpleEdge<Id, Weight>
+where
+    Id: Display + Eq + Hash + Copy,
+    Weight: Display + Eq + Hash + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}-{}-{})", self.a(), self.weight(), self.b())
     }
 }
 
-pub struct SimpleGraph<Id: Eq + Hash, Weight: Eq + Hash> {
+pub struct SimpleGraph<Id, Weight>
+where
+    Id: Copy + Eq + Hash,
+    Weight: Eq + Hash,
+{
     nodes: HashMap<Id, SimpleNode<Id, Weight>>,
 }
 
-impl<Id: Display + Eq + Hash + Copy, Weight: Display + Eq + Hash + Copy> Display
-    for SimpleGraph<Id, Weight>
+impl<Id, Weight> Display for SimpleGraph<Id, Weight>
+where
+    Id: Display + Eq + Hash + Copy,
+    Weight: Display + Eq + Hash + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -60,11 +113,37 @@ impl<Id: Display + Eq + Hash + Copy, Weight: Display + Eq + Hash + Copy> Display
     }
 }
 
-pub struct SimpleGraphBuilder<Id: Eq + Hash, Weight: Eq + Hash> {
+impl<'a, Id, Weight> Graph<'a> for SimpleGraph<Id, Weight>
+where
+    Id: Copy + Eq + Hash + 'a,
+    Weight: Eq + Hash + Copy + 'a,
+{
+    type Id = Id;
+    type Weight = Weight;
+    type Node = SimpleNode<Id, Weight>;
+
+    fn node(&self, id: &Id) -> Option<&Self::Node> {
+        self.nodes.get(id)
+    }
+
+    fn nodes(&'a self) -> impl Iterator<Item = &'a Self::Node> {
+        self.nodes.iter().map(|(_, n)| n)
+    }
+}
+
+pub struct SimpleGraphBuilder<Id, Weight>
+where
+    Id: Copy + Eq + Hash,
+    Weight: Copy + Eq + Hash,
+{
     graph: SimpleGraph<Id, Weight>,
 }
 
-impl<Id: Eq + Hash, Weight: Eq + Hash> SimpleGraphBuilder<Id, Weight> {
+impl<Id, Weight> SimpleGraphBuilder<Id, Weight>
+where
+    Id: Copy + Eq + Hash,
+    Weight: Copy + Eq + Hash,
+{
     fn new() -> SimpleGraphBuilder<Id, Weight> {
         SimpleGraphBuilder {
             graph: SimpleGraph {
@@ -91,12 +170,16 @@ impl<'a> SimpleGraphBuilder<&'a str, u8> {
     }
 }
 
-impl<'a, Id: Eq + Hash + Copy + 'a, Weight: Eq + Hash + Copy + 'a> Builder<'a, Id, Weight>
-    for SimpleGraphBuilder<Id, Weight>
+impl<'a, Id, Weight> Builder<'a> for SimpleGraphBuilder<Id, Weight>
+where
+    Id: Eq + Hash + Copy + 'a,
+    Weight: Eq + Hash + Copy + 'a,
 {
+    type Id = Id;
+    type Weight = Weight;
     type Graph = SimpleGraph<Id, Weight>;
 
-    fn add_node(&mut self, id: Id) -> &mut <Self::Graph as Graph<'a, Id, Weight>>::Node {
+    fn add_node(&mut self, id: Id) -> &mut <Self::Graph as Graph<'a>>::Node {
         self.graph.nodes.entry(id).or_insert(SimpleNode {
             id,
             edges: HashSet::new(),
@@ -114,48 +197,6 @@ impl<'a, Id: Eq + Hash + Copy + 'a, Weight: Eq + Hash + Copy + 'a> Builder<'a, I
 
     fn build(self) -> Self::Graph {
         self.graph
-    }
-}
-
-impl<Id: Eq + Hash + Copy, Weight: Eq + Hash + Copy> Edge<Id, Weight> for SimpleEdge<Id, Weight> {
-    fn weight(&self) -> Weight {
-        self.weight
-    }
-
-    fn a(&self) -> Id {
-        self.a
-    }
-
-    fn b(&self) -> Id {
-        self.b
-    }
-}
-
-impl<'a, Id: Eq + Hash + Copy + 'a, Weight: Eq + Hash + Copy + 'a> Node<'a, Id, Weight>
-    for SimpleNode<Id, Weight>
-{
-    type Edge = SimpleEdge<Id, Weight>;
-
-    fn id(&self) -> Id {
-        self.id
-    }
-
-    fn edges(&'a self) -> impl Iterator<Item = &'a Self::Edge> {
-        self.edges.iter()
-    }
-}
-
-impl<'a, Id: Copy + Eq + Hash + 'a, Weight: Eq + Hash + Copy + 'a> Graph<'a, Id, Weight>
-    for SimpleGraph<Id, Weight>
-{
-    type Node = SimpleNode<Id, Weight>;
-
-    fn node(&self, id: &Id) -> Option<&Self::Node> {
-        self.nodes.get(id)
-    }
-
-    fn nodes(&'a self) -> impl Iterator<Item = &'a Self::Node> {
-        self.nodes.iter().map(|(_, n)| n)
     }
 }
 

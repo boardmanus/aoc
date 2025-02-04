@@ -4,16 +4,17 @@ use crate::vec2d::Vec2d;
 
 pub type DirVec = Vec2d<i64>;
 
-pub trait Dir<T> {
-    fn cw() -> All<T>;
-    fn ccw() -> ReverseAll<T>;
-    fn rotate_cw(&self) -> T;
-    fn rotate_ccw(&self) -> T;
-    fn from_i(i: usize) -> T;
+pub trait Dir {
+    type DirType: Sequence + Dir;
+
+    fn cw() -> All<Self::DirType>;
+    fn ccw() -> ReverseAll<Self::DirType>;
+    fn rotate_cw(&self) -> Self::DirType;
+    fn rotate_ccw(&self) -> Self::DirType;
+    fn from_i(i: usize) -> Self::DirType;
     fn to_i(&self) -> usize;
     fn to_vec2d(&self) -> DirVec;
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Sequence)]
 pub enum Dir8 {
@@ -27,7 +28,8 @@ pub enum Dir8 {
     NW,
 }
 
-impl Dir<Dir8> for Dir8 {
+impl Dir for Dir8 {
+    type DirType = Self;
     fn cw() -> All<Dir8> {
         all::<Dir8>()
     }
@@ -56,8 +58,6 @@ impl Dir<Dir8> for Dir8 {
             7 => Dir8::NW,
             _ => panic!(),
         }
-
-
     }
     fn to_i(&self) -> usize {
         match self {
@@ -112,7 +112,8 @@ pub enum Dir4 {
     W,
 }
 
-impl Dir<Dir4> for Dir4 {
+impl Dir for Dir4 {
+    type DirType = Self;
     fn cw() -> All<Dir4> {
         all::<Dir4>()
     }
@@ -128,9 +129,8 @@ impl Dir<Dir4> for Dir4 {
     fn rotate_ccw(&self) -> Dir4 {
         previous_cycle::<Dir4>(self)
     }
-    
+
     fn from_i(i: usize) -> Dir4 {
-        
         match i % 4 {
             0 => Dir4::N,
             1 => Dir4::E,
@@ -139,7 +139,7 @@ impl Dir<Dir4> for Dir4 {
             _ => panic!(),
         }
     }
-    
+
     fn to_i(&self) -> usize {
         match self {
             Dir4::N => 0,
@@ -182,7 +182,7 @@ mod test {
     use super::*;
     #[test]
     fn test_vec2d() {
-            assert_eq!(Dir4::N.to_vec2d(), Vec2d { x: 0, y: -1 });
+        assert_eq!(Dir4::N.to_vec2d(), Vec2d { x: 0, y: -1 });
         assert_eq!(Dir4::E.to_vec2d(), Vec2d { x: 1, y: 0 });
         assert_eq!(Dir4::S.to_vec2d(), Vec2d { x: 0, y: 1 });
         assert_eq!(Dir4::W.to_vec2d(), Vec2d { x: -1, y: 0 });

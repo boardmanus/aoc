@@ -1,0 +1,346 @@
+pub mod grif;
+
+use enum_iterator::Sequence;
+
+use crate::{
+    dir::{Dir, DirVec},
+    pos2d::Pos2d,
+};
+use std::{fmt::Display, marker::PhantomData, slice::Iter};
+
+pub type GridPos = Pos2d<i64>;
+pub type GridVec = DirVec;
+
+pub trait Walkable {
+    fn walkable(&self, a: &GridPos, b: &GridPos) -> bool;
+}
+
+pub struct GridRowIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+{
+    iter: std::slice::Iter<'a, Item>,
+    phantom: PhantomData<D>,
+}
+
+impl<'a, Item, D> GridRowIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    fn new(grid: &'a Grid<Item, D>) -> GridRowIter<'a, Item, D> {
+        GridRowIter::<Item, D> {
+            iter: grid.g.iter(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, Item, D> Iterator for GridRowIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+{
+    type Item = &'a Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
+impl<'a, Item, D> DoubleEndedIterator for GridRowIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+// An iterator that traverses a grid by row or column
+pub struct GridColIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    grid: &'a Grid<Item, D>,
+    i: Option<usize>,
+    phantom: PhantomData<D>,
+}
+
+impl<'a, Item, D> GridColIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    fn new(grid: &'a Grid<Item, D>) -> GridColIter<'a, Item, D> {
+        GridColIter::<Item, D> {
+            grid,
+            i: if grid.g.is_empty() { None } else { Some(0) },
+            phantom: PhantomData,
+        }
+    }
+
+    fn wrap_col(&self, i: usize) -> Option<usize> {
+        if i < self.grid.g.len() {
+            Some(i)
+        } else {
+            let wrap_i = i % self.grid.width + 1;
+            if wrap_i < self.grid.width {
+                Some(wrap_i)
+            } else {
+                None
+            }
+        }
+    }
+
+    fn next_i(&mut self) -> Option<usize> {
+        let i = self.i?;
+        self.i = self.wrap_col(i + self.grid.width);
+        Some(i)
+    }
+}
+
+impl<'a, Item, D> Iterator for GridColIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    type Item = &'a Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.next_i()?;
+        self.grid.g.get(i)
+    }
+}
+
+impl<'a, Item, D> DoubleEndedIterator for GridColIter<'a, Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let i = self.next_i()?;
+        self.grid.g.get(self.grid.g.len() - i - 1)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Grid<Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir,
+{
+    width: usize,
+    height: usize,
+    g: Vec<Item>,
+    phantom: PhantomData<D>,
+}
+
+impl<Item, D> Display for Grid<Item, D>
+where
+    Item: Copy + Eq + Display,
+    D: Dir + Sequence,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for col in 0..self.height() as i64 {
+            for row in 0..self.width() as i64 {
+                write!(f, "{}", self.g[self.i_from(&GridPos::new(row, col))])?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl<Item, D> Grid<Item, D>
+where
+    Item: Copy + Eq,
+    D: Dir + Sequence,
+{
+    pub fn create(width: usize, height: usize, g: Vec<Item>) -> Result<Grid<Item, D>, ()> {
+        if g.len() == width * height {
+            Ok(Grid {
+                width,
+                height,
+                g,
+                phantom: PhantomData,
+            })
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn new(item: Item, width: usize, height: usize) -> Grid<Item, D> {
+        let g = vec![item; width * height];
+        Grid {
+            width,
+            height,
+            g,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn parse(input: &str) -> Grid<char, D> {
+        Grid::parse_items(input, |c| c)
+    }
+
+    pub fn iter(&self) -> Iter<'_, Item> {
+        self.g.iter()
+    }
+
+    pub fn row_iter(&self) -> GridRowIter<'_, Item, D> {
+        GridRowIter::<Item, D>::new(self)
+    }
+
+    pub fn col_iter(&self) -> GridColIter<'_, Item, D> {
+        GridColIter::<Item, D>::new(self)
+    }
+
+    pub fn parse_items(input: &str, convert: fn(char) -> Item) -> Grid<Item, D> {
+        let rows_cols: Vec<Vec<_>> = input.lines().map(|line| line.chars().collect()).collect();
+        let width = rows_cols[0].len();
+        let height = rows_cols.len();
+        let g = rows_cols
+            .iter()
+            .flatten()
+            .map(|x| convert(*x))
+            .collect::<Vec<_>>();
+        Grid {
+            width,
+            height,
+            g,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn is_valid(&self, index: &GridPos) -> bool {
+        index.x >= 0 && index.x < self.width as i64 && index.y >= 0 && index.y < self.height as i64
+    }
+
+    pub fn at(&self, index: &GridPos) -> Option<Item> {
+        if self.is_valid(index) {
+            Some(self.g[self.i_from(&index)])
+        } else {
+            None
+        }
+    }
+
+    pub fn pos_from(&self, i: usize) -> GridPos {
+        GridPos::new((i % self.width) as i64, (i / self.width) as i64)
+    }
+
+    fn i_from(&self, index: &GridPos) -> usize {
+        (index.x as usize) + (index.y as usize) * self.width
+    }
+
+    pub fn set(&mut self, index: &GridPos, val: Item) -> Option<Item> {
+        let i = self.i_from(index);
+        if i < self.g.len() {
+            let old = self.g[i];
+            self.g[i] = val;
+            Some(old)
+        } else {
+            None
+        }
+    }
+
+    pub fn find(&self, c: Item) -> Option<GridPos> {
+        self.g.iter().enumerate().find_map(|(i, &val)| {
+            if val == c {
+                Some(self.pos_from(i))
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn around<'a>(&'a self, index: &'a GridPos) -> impl Iterator<Item = GridPos> + 'a {
+        D::cw().map(|d| *index + d.to_vec2d())
+    }
+
+    pub fn matches(&self, index: &GridPos, c: Item) -> bool {
+        self.at(index) == Some(c)
+    }
+
+    pub fn filter_items<'a>(&'a self, c: Item) -> impl Iterator<Item = GridPos> + 'a {
+        self.row_iter()
+            .enumerate()
+            .filter(move |(_, &x)| x == c)
+            .map(|(i, _)| self.pos_from(i))
+    }
+}
+
+impl<Item, D> Grid<Item, D>
+where
+    Item: Copy + Eq + Walkable,
+    D: Dir + Sequence,
+{
+    pub fn neighbours<'a>(&'a self, index: &'a GridPos) -> impl Iterator<Item = GridPos> + 'a {
+        self.around(index)
+            .filter(move |p| self.at(p).is_some_and(|item| item.walkable(index, p)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::dir::Dir4;
+
+    use super::*;
+
+    #[test]
+    fn test_grid_parse() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(
+            g.g,
+            vec!['1', '2', '3', '4', '1', '2', '3', '4', '5', '6', '7', '8']
+        );
+    }
+
+    #[test]
+    fn test_grid_at() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.at(&GridPos::new(2, 1)), Some('3'));
+    }
+
+    #[test]
+    fn test_grid_row_iter() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.row_iter().collect::<String>(), "123412345678");
+    }
+
+    #[test]
+    fn test_grid_col_iter() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.col_iter().collect::<String>(), "115226337448");
+    }
+
+    #[test]
+    fn test_grid_row_iter_rev() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.row_iter().rev().collect::<String>(), "876543214321");
+    }
+
+    #[test]
+    fn test_grid_col_iter_rev() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(g.col_iter().rev().collect::<String>(), "844733622511");
+    }
+
+    #[test]
+    fn test_grid_filter_items() {
+        let g = Grid::<char, Dir4>::parse("1234\n1234\n5678\n");
+        assert_eq!(
+            g.filter_items('2').collect::<Vec<_>>(),
+            vec![GridPos::new(1, 0), GridPos::new(1, 1)]
+        );
+    }
+}
