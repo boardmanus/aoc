@@ -40,7 +40,7 @@ pub trait Graph<'a> {
     fn node(&self, id: &Self::Id) -> Option<&Self::Node>;
     fn nodes(&'a self) -> impl Iterator<Item = &Self::Node>;
     fn edges(&'a self) -> impl Iterator<Item = &<Self::Node as Node<'a>>::Edge> {
-        self.nodes().flat_map(move |n| n.edges())
+        self.nodes().flat_map(|n| n.edges())
     }
 }
 

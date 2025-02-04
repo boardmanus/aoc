@@ -131,25 +131,26 @@ fn find_maximal_clique_r<'a, G: Graph<'a>>(
         return Some(r);
     }
 
-    let mut max_clique = r;
+    let mut max_clique: Option<Vec<G::Id>> = None;
     let mut p2 = p.clone();
     let mut x2 = x;
     for v in p {
-        let n = graph.node(&v)?.neighbours().collect::<Vec<_>>();
-        let clique = find_maximal_clique_r(
+        let n = graph.node(&v).unwrap().neighbours().collect::<Vec<_>>();
+        if let Some(clique) = find_maximal_clique_r(
             graph,
-            max_clique.union(&[v]),
+            r.union(&[v]),
             p2.intersection(&n),
             x2.intersection(&n),
-        )?;
-        if clique.len() > max_clique.len() {
-            max_clique = clique;
+        ) {
+            if max_clique.is_none() || clique.len() > max_clique.as_ref().unwrap().len() {
+                max_clique = Some(clique);
+            }
         }
         p2.retain(|x| *x != v);
         x2.push(v);
     }
 
-    Some(max_clique)
+    max_clique
 }
 
 // Find the maximal clique at a vertice in the graph.
@@ -158,7 +159,7 @@ fn find_maximal_clique_r<'a, G: Graph<'a>>(
 pub fn find_maximal_clique<'a, G: Graph<'a>>(graph: &'a G, node_id: G::Id) -> Option<Vec<G::Id>> {
     let r = vec![node_id];
     let p = graph.node(&node_id)?.neighbours().collect::<Vec<_>>();
-    let x = vec![node_id];
+    let x = vec![];
     find_maximal_clique_r(graph, r, p, x)
 }
 

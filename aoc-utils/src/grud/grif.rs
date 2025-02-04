@@ -1,26 +1,13 @@
-use enum_iterator::Sequence;
-
+/*
 use super::{Grid, GridPos};
-use crate::{
-    dir::Dir,
-    grif::{Edge, Graph, Node},
-};
+use crate::{dir::Dir, grif::Edge};
 
-struct GridEdge<'a, Item, D>
-where
-    Item: Copy + Eq,
-    D: Dir,
-{
-    grid: &'a Grid<Item, D>,
+struct GridEdge {
     a: GridPos,
     b: GridPos,
 }
 
-impl<'a, Item, D> Edge for GridEdge<'a, Item, D>
-where
-    Item: Copy + Eq,
-    D: Dir,
-{
+impl Edge for GridEdge {
     type Id = GridPos;
     type Weight = bool;
 
@@ -47,7 +34,7 @@ where
     item: Item,
 }
 
-/*
+
 
 impl<'a, Item, D> Node<'a> for GridNode<'a, Item, D>
 where

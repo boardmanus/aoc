@@ -1,4 +1,4 @@
-use aoc_utils::grof::{
+use aoc_utils::grif::{
     algorithms::{find_maximal_clique, find_maximum_clique},
     simple::SimpleGraphBuilder,
 };
