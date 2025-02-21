@@ -96,14 +96,15 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        assert!(Pos2d::<usize>::new(1, 2) < Pos2d::<usize>::new(2, 1));
+        assert!(Pos2d::<usize>::new(1, 2) > Pos2d::<usize>::new(2, 1));
         assert!(Pos2d::<usize>::new(1, 2) < Pos2d::<usize>::new(1, 3));
         assert!(Pos2d::<usize>::new(1, 2) < Pos2d::<usize>::new(2, 2));
-        assert!(Pos2d::<i64>::new(1, 2) < Pos2d::<i64>::new(2, 1));
+        assert!(Pos2d::<i64>::new(1, 2) > Pos2d::<i64>::new(2, 1));
         assert!(Pos2d::<i64>::new(1, 2) < Pos2d::<i64>::new(1, 3));
         assert!(Pos2d::<i64>::new(1, 2) < Pos2d::<i64>::new(2, 2));
         assert!(Pos2d::<i64>::new(1, 2) == Pos2d::<i64>::new(1, 2));
         assert!(Pos2d::<i64>::new(1, 2) != Pos2d::<i64>::new(-1, 2));
         assert!(Pos2d::<i64>::new(1, 2) > Pos2d::<i64>::new(-1, 2));
+        assert!(Pos2d::<i64>::new(1, 2) > Pos2d::<i64>::new(1, -2));
     }
 }

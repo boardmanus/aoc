@@ -1,28 +1,24 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use aoc_utils::{
     dir::{Dir, Dir4},
-    grid::{Grid, Index},
+    grud::{Grid, GridPos},
 };
 
-type Trail = Vec<Index>;
-type TrailTopo = Grid<u32>;
-type TrailHeads = HashMap<Index, HashMap<Index, usize>>;
+type Trail = Vec<GridPos>;
+type TrailTopo = Grid<u32, Dir4>;
+type TrailHeads = HashMap<GridPos, HashMap<GridPos, usize>>;
 type Trails = HashSet<Trail>;
 
 fn find_trails(grid: &TrailTopo) -> TrailHeads {
-    let trail_starts = grid.filter_pos(0);
-    assert!(trail_starts.len() > 0);
+    let trail_starts = grid.filter_items(0);
     let mut trail_heads = TrailHeads::default();
     let mut complete_trails = Trails::default();
-    let mut trails = trail_starts
-        .iter()
-        .map(|&s| vec![s])
-        .collect::<Vec<Trail>>();
+    let mut trails = trail_starts.map(|s| vec![s]).collect::<VecDeque<Trail>>();
 
-    while let Some(trail) = trails.pop() {
+    while let Some(trail) = trails.pop_front() {
         let last = *trail.last().unwrap();
-        let last_height = grid.at(last).unwrap();
+        let last_height = grid.at(&last).unwrap();
         if last_height == 9 {
             let first = *trail.first().unwrap();
             *trail_heads
@@ -33,10 +29,10 @@ fn find_trails(grid: &TrailTopo) -> TrailHeads {
             complete_trails.insert(trail);
         } else {
             Dir4::cw()
-                .map(|dir| last + dir)
+                .map(|dir| last + dir.into())
                 .filter(|&i| {
-                    if grid.is_valid(i) {
-                        let height = grid.at(i).unwrap();
+                    if grid.is_valid(&i) {
+                        let height = grid.at(&i).unwrap();
                         height == last_height + 1
                     } else {
                         false
@@ -47,20 +43,20 @@ fn find_trails(grid: &TrailTopo) -> TrailHeads {
                     t.push(i);
                     t
                 })
-                .for_each(|t| trails.push(t));
+                .for_each(|t| trails.push_back(t));
         }
     }
     trail_heads
 }
 
 pub fn part1(input: &str) -> usize {
-    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap());
+    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap(), |_, _, _| true);
     let trails = find_trails(&grid);
     trails.iter().map(|(_, s)| s.len()).sum()
 }
 
 pub fn part2(input: &str) -> usize {
-    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap());
+    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap(), |_, _, _| true);
     let trails = find_trails(&grid);
     trails
         .iter()

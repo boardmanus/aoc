@@ -69,25 +69,26 @@ where
 {
     use graphviz_rust::dot_generator::*;
     use graphviz_rust::dot_structures::*;
-    let stmts = g
-        .edges()
-        .map(|e| {
-            dots::Stmt::Edge(
-                // Add weight attribute: EdgeAttribute::weight(e.2.to_string())
-                dotg::edge!(node_id!(e.0.to_string()) => node_id!(e.1.to_string())),
-            )
-        })
+    let mut stmts = g
+        .nodes()
+        .map(|n| Stmt::Node(dotg::node!(n)))
         .collect::<Vec<_>>();
+    stmts.extend(g.edges().map(|e| {
+        dots::Stmt::Edge(
+            // Add weight attribute: EdgeAttribute::weight(e.2.to_string())
+            dotg::edge!(node_id!(e.0.to_string()) => node_id!(e.1.to_string())),
+        )
+    }));
     if digraph {
         dots::Graph::DiGraph {
             id: id!(g.name()),
-            strict: true,
+            strict: false,
             stmts,
         }
     } else {
         dots::Graph::Graph {
             id: id!(g.name()),
-            strict: true,
+            strict: false,
             stmts,
         }
     }

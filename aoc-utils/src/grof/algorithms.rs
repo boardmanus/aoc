@@ -64,14 +64,19 @@ pub fn find_cycles_from_r<G>(
     }
 }
 
-pub fn find_cycles<G>(graph: &G, cycle_size: usize) -> Vec<Vec<G::NodeId>>
+type FilterPred<NodeId> = fn(node: &NodeId) -> bool;
+pub fn find_cycles<G>(
+    graph: &G,
+    cycle_size: usize,
+    filter: FilterPred<G::NodeId>,
+) -> Vec<Vec<G::NodeId>>
 where
     G: Graph,
     G::NodeId: Eq + Hash,
 {
     let mut visited: HashMap<G::NodeId, Option<G::NodeId>> = HashMap::new();
     let mut all_cycles: Vec<Vec<G::NodeId>> = vec![];
-    graph.nodes().for_each(|node| {
+    graph.nodes().filter(filter).for_each(|node| {
         visited.insert(node, None);
         find_cycles_from_r(
             graph,

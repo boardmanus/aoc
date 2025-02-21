@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 
+use graphviz_rust::dot_structures as dots;
+
 use super::{Builder, Graph};
 
 struct Node<NodeId, NodeValue, Weight> {
@@ -12,11 +14,21 @@ struct Node<NodeId, NodeValue, Weight> {
 
 pub struct SimpleGraph<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + PartialEq + Hash,
-    Weight: PartialEq + Hash,
+    NodeId: Copy + Eq + Hash,
+    Weight: Copy + Eq + Hash,
 {
     name: String,
     nodes: HashMap<NodeId, Node<NodeId, NodeValue, Weight>>,
+}
+
+impl<NodeId, NodeValue, Weight> SimpleGraph<NodeId, NodeValue, Weight>
+where
+    NodeId: Copy + Eq + Hash + Display,
+    Weight: Copy + Eq + Hash,
+{
+    pub fn to_viz(&self, digraph: bool) -> dots::Graph {
+        super::to_viz::<Self>(self, digraph)
+    }
 }
 
 impl<NodeId, NodeValue, Weight> Display for SimpleGraph<NodeId, NodeValue, Weight>
@@ -61,16 +73,16 @@ where
 
 pub struct SimpleGraphBuilder<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + PartialEq + Hash,
-    Weight: PartialEq + Hash,
+    NodeId: Copy + Eq + Hash,
+    Weight: Copy + Eq + Hash,
 {
     graph: SimpleGraph<NodeId, NodeValue, Weight>,
 }
 
 impl<NodeId, NodeValue, Weight> SimpleGraphBuilder<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + PartialEq + Hash,
-    Weight: PartialEq + Hash,
+    NodeId: Copy + Eq + Hash + Display,
+    Weight: Copy + Eq + Hash,
 {
     fn new(name: &str) -> SimpleGraphBuilder<NodeId, NodeValue, Weight> {
         SimpleGraphBuilder {

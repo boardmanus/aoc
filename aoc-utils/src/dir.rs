@@ -86,12 +86,6 @@ impl Dir for Dir8 {
     }
 }
 
-impl From<Dir8> for DirVec {
-    fn from(dir: Dir8) -> Self {
-        dir.to_vec2d()
-    }
-}
-
 impl From<usize> for Dir8 {
     fn from(i: usize) -> Dir8 {
         Dir8::from_i(i)
@@ -159,12 +153,6 @@ impl Dir for Dir4 {
     }
 }
 
-impl From<Dir4> for DirVec {
-    fn from(dir: Dir4) -> DirVec {
-        dir.to_vec2d()
-    }
-}
-
 impl From<usize> for Dir4 {
     fn from(i: usize) -> Dir4 {
         Dir4::from_i(i)
@@ -174,6 +162,17 @@ impl From<usize> for Dir4 {
 impl From<Dir4> for usize {
     fn from(dir: Dir4) -> Self {
         dir.to_i()
+    }
+}
+
+impl From<Dir8> for DirVec {
+    fn from(dir: Dir8) -> Self {
+        dir.to_vec2d()
+    }
+}
+impl From<Dir4> for DirVec {
+    fn from(dir: Dir4) -> DirVec {
+        dir.to_vec2d()
     }
 }
 
