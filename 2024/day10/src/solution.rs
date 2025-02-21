@@ -1,67 +1,73 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{hash_map::Entry, HashMap};
 
 use aoc_utils::{
-    dir::{Dir, Dir4},
+    dir::Dir4,
+    grof::algorithms::dfs,
     grud::{Grid, GridPos},
 };
 
-type Trail = Vec<GridPos>;
-type TrailTopo = Grid<u32, Dir4>;
-type TrailHeads = HashMap<GridPos, HashMap<GridPos, usize>>;
-type Trails = HashSet<Trail>;
+type TrailMap = Grid<u32, Dir4>;
 
-fn find_trails(grid: &TrailTopo) -> TrailHeads {
-    let trail_starts = grid.filter_items(0);
-    let mut trail_heads = TrailHeads::default();
-    let mut complete_trails = Trails::default();
-    let mut trails = trail_starts.map(|s| vec![s]).collect::<VecDeque<Trail>>();
+fn traversable(g: &Grid<u32, Dir4>, from: &GridPos, to: &GridPos) -> bool {
+    // A path is traversable if the to position is exactly 1 higher than the from.
+    let to_height = g.at(to);
+    let from_height = g.at(from);
+    to_height.is_some() && from_height.is_some() && to_height.unwrap() == from_height.unwrap() + 1
+}
 
-    while let Some(trail) = trails.pop_front() {
-        let last = *trail.last().unwrap();
-        let last_height = grid.at(&last).unwrap();
-        if last_height == 9 {
-            let first = *trail.first().unwrap();
-            *trail_heads
-                .entry(first)
-                .or_default()
-                .entry(last)
-                .or_default() += 1;
-            complete_trails.insert(trail);
-        } else {
-            Dir4::cw()
-                .map(|dir| last + dir.into())
-                .filter(|&i| {
-                    if grid.is_valid(&i) {
-                        let height = grid.at(&i).unwrap();
-                        height == last_height + 1
-                    } else {
-                        false
-                    }
-                })
-                .map(|i| {
-                    let mut t = trail.clone();
-                    t.push(i);
-                    t
-                })
-                .for_each(|t| trails.push_back(t));
+fn trail_score(g: &TrailMap, location: GridPos) -> usize {
+    let mut score = 0;
+    dfs(g, location, |location| {
+        // The score increases if a trail position of 9 is reached.
+        if g.at(location) == Some(9) {
+            score += 1;
         }
+    });
+    score
+}
+
+fn trail_map_score(g: &TrailMap) -> usize {
+    // Map score is the sum of all the trail scores from the start locations
+    g.filter_items(0).map(|start| trail_score(g, start)).sum()
+}
+
+fn trail_map_rating_r(g: &TrailMap, from: GridPos, cache: &mut HashMap<GridPos, usize>) -> usize {
+    if let Entry::Occupied(e) = cache.entry(from) {
+        // Just return the cached value
+        *e.get()
+    } else {
+        let rating = if g.at(&from) == Some(9) {
+            // At max height, it's always one route
+            1
+        } else {
+            // Recursively calculate the trail rating for each neighbour of this location.
+            // The sum of them will be the trail rating at this location.
+            g.neighbours(from)
+                .map(|n| trail_map_rating_r(g, n, cache))
+                .sum()
+        };
+        // Cache the trail rating determined at this location
+        cache.insert(from, rating);
+        rating
     }
-    trail_heads
+}
+
+fn trail_map_rating(g: &TrailMap) -> usize {
+    // Trail map rating is the sum of all the ratings from each start position
+    let mut cache: HashMap<GridPos, usize> = HashMap::new();
+    g.filter_items(0)
+        .map(|start| trail_map_rating_r(g, start, &mut cache))
+        .sum()
 }
 
 pub fn part1(input: &str) -> usize {
-    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap(), |_, _, _| true);
-    let trails = find_trails(&grid);
-    trails.iter().map(|(_, s)| s.len()).sum()
+    let trail_map = TrailMap::parse_items(input, |c| c.to_digit(10).unwrap(), traversable);
+    trail_map_score(&trail_map)
 }
 
 pub fn part2(input: &str) -> usize {
-    let grid = Grid::parse_items(input, |c| c.to_digit(10).unwrap(), |_, _, _| true);
-    let trails = find_trails(&grid);
-    trails
-        .iter()
-        .map(|(_, s)| s.iter().map(|(_, &r)| r).sum::<usize>())
-        .sum()
+    let trail_map = TrailMap::parse_items(input, |c| c.to_digit(10).unwrap(), traversable);
+    trail_map_rating(&trail_map)
 }
 
 #[cfg(test)]
