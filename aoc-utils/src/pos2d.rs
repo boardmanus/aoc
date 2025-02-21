@@ -4,7 +4,7 @@ use std::{
 };
 
 use approx::AbsDiffEq;
-use num_traits::{Float, FromPrimitive, Num, PrimInt, Signed};
+use num_traits::{Float, FromPrimitive, Num, Signed};
 
 use crate::vec2d::Vec2d;
 
@@ -12,6 +12,25 @@ use crate::vec2d::Vec2d;
 pub struct Pos2d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
+}
+
+impl<Scalar: Num + PartialOrd> PartialOrd for Pos2d<Scalar> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.y.partial_cmp(&other.y) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.x.partial_cmp(&other.x)
+    }
+}
+
+impl<Scalar: Num + Ord + Eq> Ord for Pos2d<Scalar> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.y.cmp(&other.y) {
+            core::cmp::Ordering::Equal => self.x.cmp(&other.x),
+            ord => ord,
+        }
+    }
 }
 
 impl<Scalar: Num> Pos2d<Scalar> {
@@ -39,16 +58,6 @@ impl<Scalar: Num> Sub<Vec2d<Scalar>> for Pos2d<Scalar> {
 
     fn sub(self, rhs: Vec2d<Scalar>) -> Self::Output {
         Pos2d::new(self.x - rhs.x, self.y - rhs.y)
-    }
-}
-
-impl<Scalar: PrimInt> PartialOrd for Pos2d<Scalar> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.x == other.x {
-            Some(self.y.cmp(&other.y))
-        } else {
-            Some(self.x.cmp(&other.x))
-        }
     }
 }
 

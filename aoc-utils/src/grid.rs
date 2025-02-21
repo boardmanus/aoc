@@ -297,7 +297,7 @@ impl<Item: Copy + Eq> Grid<Item> {
 
     pub fn at_pos(&self, index: &GridPos) -> Option<Item> {
         if self.is_valid_pos(index) {
-            Some(self.g[self.i_from_pos(&index)])
+            Some(self.g[self.i_from_pos(index)])
         } else {
             None
         }

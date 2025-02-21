@@ -1,4 +1,4 @@
-pub mod grif;
+pub mod grof;
 
 use enum_iterator::Sequence;
 
@@ -10,10 +10,7 @@ use std::{fmt::Display, marker::PhantomData, slice::Iter};
 
 pub type GridPos = Pos2d<i64>;
 pub type GridVec = DirVec;
-
-pub trait Walkable {
-    fn walkable(&self, a: &GridPos, b: &GridPos) -> bool;
-}
+pub type Walkable<Item, D> = fn(g: &Grid<Item, D>, a: &GridPos, b: &GridPos) -> bool;
 
 pub struct GridRowIter<'a, Item, D>
 where
@@ -133,6 +130,7 @@ where
     width: usize,
     height: usize,
     g: Vec<Item>,
+    walkable: Walkable<Item, D>,
     phantom: PhantomData<D>,
 }
 
@@ -152,59 +150,69 @@ where
     }
 }
 
+pub enum Error {
+    BadSize,
+}
+
 impl<Item, D> Grid<Item, D>
 where
     Item: Copy + Eq,
     D: Dir + Sequence,
 {
-    pub fn create(width: usize, height: usize, g: Vec<Item>) -> Result<Grid<Item, D>, ()> {
+    pub fn create_walkable(
+        width: usize,
+        height: usize,
+        g: Vec<Item>,
+        walkable: Walkable<Item, D>,
+    ) -> Result<Grid<Item, D>, Error> {
         if g.len() == width * height {
             Ok(Grid {
                 width,
                 height,
                 g,
+                walkable,
                 phantom: PhantomData,
             })
         } else {
-            Err(())
+            Err(Error::BadSize)
         }
     }
-
-    pub fn new(item: Item, width: usize, height: usize) -> Grid<Item, D> {
+    pub fn create(width: usize, height: usize, g: Vec<Item>) -> Result<Grid<Item, D>, Error> {
+        Grid::create_walkable(width, height, g, |_, _, _| true)
+    }
+    pub fn new_walkable(
+        item: Item,
+        width: usize,
+        height: usize,
+        walkable: Walkable<Item, D>,
+    ) -> Grid<Item, D> {
         let g = vec![item; width * height];
         Grid {
             width,
             height,
             g,
+            walkable,
             phantom: PhantomData,
         }
     }
 
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
+    pub fn new(item: Item, width: usize, height: usize) -> Grid<Item, D> {
+        Grid::new_walkable(item, width, height, |_, _, _| true)
     }
 
     pub fn parse(input: &str) -> Grid<char, D> {
-        Grid::parse_items(input, |c| c)
+        Grid::parse_items(input, |c| c, |_, _, _| true)
     }
 
-    pub fn iter(&self) -> Iter<'_, Item> {
-        self.g.iter()
+    pub fn parse_walkable(input: &str, walkable: Walkable<char, D>) -> Grid<char, D> {
+        Grid::parse_items(input, |c| c, walkable)
     }
 
-    pub fn row_iter(&self) -> GridRowIter<'_, Item, D> {
-        GridRowIter::<Item, D>::new(self)
-    }
-
-    pub fn col_iter(&self) -> GridColIter<'_, Item, D> {
-        GridColIter::<Item, D>::new(self)
-    }
-
-    pub fn parse_items(input: &str, convert: fn(char) -> Item) -> Grid<Item, D> {
+    pub fn parse_items(
+        input: &str,
+        convert: fn(char) -> Item,
+        walkable: Walkable<Item, D>,
+    ) -> Grid<Item, D> {
         let rows_cols: Vec<Vec<_>> = input.lines().map(|line| line.chars().collect()).collect();
         let width = rows_cols[0].len();
         let height = rows_cols.len();
@@ -217,17 +225,50 @@ where
             width,
             height,
             g,
+            walkable,
             phantom: PhantomData,
         }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    pub fn iter(&self) -> Iter<'_, Item> {
+        self.g.iter()
+    }
+
+    pub fn iter_pos(&self) -> impl Iterator<Item = GridPos> + '_ {
+        (0..self.g.len()).map(|i| self.pos_from(i))
+    }
+
+    pub fn row_iter(&self) -> GridRowIter<'_, Item, D> {
+        GridRowIter::<Item, D>::new(self)
+    }
+
+    pub fn col_iter(&self) -> GridColIter<'_, Item, D> {
+        GridColIter::<Item, D>::new(self)
     }
 
     pub fn is_valid(&self, index: &GridPos) -> bool {
         index.x >= 0 && index.x < self.width as i64 && index.y >= 0 && index.y < self.height as i64
     }
 
+    pub fn value(&self, index: &GridPos) -> Option<&Item> {
+        if self.is_valid(index) {
+            Some(&self.g[self.i_from(index)])
+        } else {
+            None
+        }
+    }
+
     pub fn at(&self, index: &GridPos) -> Option<Item> {
         if self.is_valid(index) {
-            Some(self.g[self.i_from(&index)])
+            Some(self.g[self.i_from(index)])
         } else {
             None
         }
@@ -262,15 +303,20 @@ where
         })
     }
 
-    pub fn around<'a>(&'a self, index: &'a GridPos) -> impl Iterator<Item = GridPos> + 'a {
-        D::cw().map(|d| *index + d.to_vec2d())
+    pub fn around(&self, index: GridPos) -> impl Iterator<Item = GridPos> {
+        D::cw().map(move |d| index + d.to_vec2d())
+    }
+
+    pub fn neighbours(&self, index: GridPos) -> impl Iterator<Item = GridPos> + '_ {
+        self.around(index)
+            .filter(move |n| (self.walkable)(self, &index, n))
     }
 
     pub fn matches(&self, index: &GridPos, c: Item) -> bool {
         self.at(index) == Some(c)
     }
 
-    pub fn filter_items<'a>(&'a self, c: Item) -> impl Iterator<Item = GridPos> + 'a {
+    pub fn filter_items(&self, c: Item) -> impl Iterator<Item = GridPos> + '_ {
         self.row_iter()
             .enumerate()
             .filter(move |(_, &x)| x == c)
@@ -278,21 +324,12 @@ where
     }
 }
 
-impl<Item, D> Grid<Item, D>
-where
-    Item: Copy + Eq + Walkable,
-    D: Dir + Sequence,
-{
-    pub fn neighbours<'a>(&'a self, index: &'a GridPos) -> impl Iterator<Item = GridPos> + 'a {
-        self.around(index)
-            .filter(move |p| self.at(p).is_some_and(|item| item.walkable(index, p)))
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crate::dir::Dir4;
+    use std::collections::HashSet;
+
+    use crate::dir::{Dir4, Dir8};
 
     use super::*;
 
@@ -341,6 +378,22 @@ mod tests {
         assert_eq!(
             g.filter_items('2').collect::<Vec<_>>(),
             vec![GridPos::new(1, 0), GridPos::new(1, 1)]
+        );
+    }
+
+    #[test]
+    fn test_grid_neigbours() {
+        let g =
+            Grid::<char, Dir8>::parse_walkable("1234\n1234\n5373\n", |g, a, b| g.at(a) == g.at(b));
+
+        assert_eq!(
+            g.neighbours(GridPos::new(0, 0)).collect::<Vec<_>>(),
+            vec![GridPos::new(0, 1)]
+        );
+
+        assert_eq!(
+            g.neighbours(GridPos::new(2, 1)).collect::<HashSet<_>>(),
+            HashSet::from([GridPos::new(2, 0), GridPos::new(1, 2), GridPos::new(3, 2)])
         );
     }
 }

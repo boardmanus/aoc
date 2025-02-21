@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::hash_map::Values;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -168,7 +169,7 @@ impl<Id: Eq + Hash + Copy, Weight> Graph<Id, Weight> {
         visited: &mut HashMap<Id, Option<Id>>,
         cycles: &mut Vec<Vec<Id>>,
     ) {
-        let node: &Node<Id, Weight> = self.nodes.get(&id).unwrap();
+        let node: &Node<Id, Weight> = self.nodes.get(id).unwrap();
         if level == 0 {
             if node.is_adjacent(start_id) {
                 cycles.push(self.backtrack_cycle(id, &from_id.unwrap(), visited));
@@ -177,8 +178,8 @@ impl<Id: Eq + Hash + Copy, Weight> Graph<Id, Weight> {
             let mut visited_r = visited.clone();
             visited_r.insert(*id, from_id);
             for edge in node.edges.iter() {
-                if !visited_r.contains_key(&edge.b) {
-                    visited_r.insert(edge.b, Some(*id));
+                if let Entry::Vacant(e) = visited_r.entry(edge.b) {
+                    e.insert(Some(*id));
                     self.find_cycles_from_r(
                         &edge.b,
                         Some(*id),
@@ -213,23 +214,21 @@ impl<Id: Eq + Hash + Copy, Weight> Graph<Id, Weight> {
         all_cycles
     }
 
-    fn find_maximal_clique_r(&self, r: &[Id], clique: &Vec<Id>) -> Vec<Id> {
-        let mut new_clique = clique.clone();
+    fn find_maximal_clique_r(&self, r: &[Id], clique: &[Id]) -> Vec<Id> {
+        let mut new_clique = clique.to_owned();
         let v = self.nodes.get(&r[0]).unwrap();
-        if v.degree() >= clique.len() {
-            if clique.iter().all(|id| v.is_adjacent(id)) {
-                let rest = &r[1..];
-                new_clique.push(v.id);
-                if rest.len() > 0 {
-                    let mut max = vec![];
-                    for i in 0..rest.len() {
-                        let new_max = self.find_maximal_clique_r(&rest[i..], &new_clique);
-                        if new_max.len() > max.len() {
-                            max = new_max;
-                        }
+        if v.degree() >= clique.len() && clique.iter().all(|id| v.is_adjacent(id)) {
+            let rest = &r[1..];
+            new_clique.push(v.id);
+            if !rest.is_empty() {
+                let mut max = vec![];
+                for i in 0..rest.len() {
+                    let new_max = self.find_maximal_clique_r(&rest[i..], &new_clique);
+                    if new_max.len() > max.len() {
+                        max = new_max;
                     }
-                    return max;
                 }
+                return max;
             }
         }
         new_clique
@@ -239,9 +238,9 @@ impl<Id: Eq + Hash + Copy, Weight> Graph<Id, Weight> {
     // Note: A clique is a complete subgraph of the graph.
     pub fn find_maximal_clique(&self, node_id: Id) -> Vec<Id> {
         if let Some(node) = self.nodes.get(&node_id) {
-            let mut clique = vec![node_id];
+            let clique = vec![node_id];
             let r = node.edges.iter().map(|e| e.b).collect::<Vec<_>>();
-            self.find_maximal_clique_r(&r, &mut clique)
+            self.find_maximal_clique_r(&r, &clique)
         } else {
             vec![]
         }

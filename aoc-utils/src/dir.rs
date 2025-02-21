@@ -86,9 +86,9 @@ impl Dir for Dir8 {
     }
 }
 
-impl Into<DirVec> for Dir8 {
-    fn into(self) -> DirVec {
-        self.to_vec2d()
+impl From<Dir8> for DirVec {
+    fn from(dir: Dir8) -> Self {
+        dir.to_vec2d()
     }
 }
 
@@ -98,9 +98,9 @@ impl From<usize> for Dir8 {
     }
 }
 
-impl Into<usize> for Dir8 {
-    fn into(self) -> usize {
-        self.to_i()
+impl From<Dir8> for usize {
+    fn from(dir: Dir8) -> usize {
+        dir.to_i()
     }
 }
 
@@ -159,9 +159,9 @@ impl Dir for Dir4 {
     }
 }
 
-impl Into<DirVec> for Dir4 {
-    fn into(self) -> DirVec {
-        self.to_vec2d()
+impl From<Dir4> for DirVec {
+    fn from(dir: Dir4) -> DirVec {
+        dir.to_vec2d()
     }
 }
 
@@ -171,9 +171,9 @@ impl From<usize> for Dir4 {
     }
 }
 
-impl Into<usize> for Dir4 {
-    fn into(self) -> usize {
-        self.to_i()
+impl From<Dir4> for usize {
+    fn from(dir: Dir4) -> Self {
+        dir.to_i()
     }
 }
 

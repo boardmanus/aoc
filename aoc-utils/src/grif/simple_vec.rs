@@ -1,27 +1,20 @@
-use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-use std::hash::Hash;
 
 use super::{Builder, Edge, Graph, Node};
 
-//trait SimpleId: Eq + Hash + Clone + Copy {}
-//trait SimpleWeight: Eq + Hash + Clone + Copy {}
-//#![feature(trait_alias)]
-//pub trait SimpleId = Eq + Hash + Copy;
-
 pub struct SimpleNode<Id, Weight>
 where
-    Id: Copy + Eq + Hash,
-    Weight: Eq + Hash,
+    Id: Copy + Eq,
+    Weight: Eq,
 {
     id: Id,
-    edges: HashSet<SimpleEdge<Id, Weight>>,
+    edges: Vec<SimpleEdge<Id, Weight>>,
 }
 
 impl<'a, Id, Weight> Node<'a> for SimpleNode<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy + 'a,
-    Weight: Display + Eq + Hash + Copy + 'a,
+    Id: Display + Eq + Copy + 'a,
+    Weight: Display + Eq + Copy + 'a,
 {
     type Id = Id;
     type Weight = Weight;
@@ -38,8 +31,8 @@ where
 
 impl<Id, Weight> Display for SimpleNode<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy,
-    Weight: Display + Eq + Hash + Copy,
+    Id: Display + Eq + Copy,
+    Weight: Display + Eq + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         super::display_fmt_node(self, f)
@@ -47,7 +40,7 @@ where
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
-pub struct SimpleEdge<Id: Eq + Hash, Weight: Eq + Hash> {
+pub struct SimpleEdge<Id: Eq, Weight: Eq> {
     a: Id,
     b: Id,
     weight: Weight,
@@ -55,8 +48,8 @@ pub struct SimpleEdge<Id: Eq + Hash, Weight: Eq + Hash> {
 
 impl<Id, Weight> Edge for SimpleEdge<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy,
-    Weight: Display + Eq + Hash + Copy,
+    Id: Display + Eq + Copy,
+    Weight: Display + Eq + Copy,
 {
     type Id = Id;
     type Weight = Weight;
@@ -76,8 +69,8 @@ where
 
 impl<Id, Weight> Display for SimpleEdge<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy,
-    Weight: Display + Eq + Hash + Copy,
+    Id: Display + Eq + Copy,
+    Weight: Display + Eq + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         super::display_fmt_edge(self, f)
@@ -86,17 +79,17 @@ where
 
 pub struct SimpleGraph<Id, Weight>
 where
-    Id: Copy + Eq + Hash,
-    Weight: Eq + Hash,
+    Id: Copy + Eq,
+    Weight: Eq,
 {
     name: String,
-    nodes: HashMap<Id, SimpleNode<Id, Weight>>,
+    nodes: Vec<SimpleNode<Id, Weight>>,
 }
 
 impl<Id, Weight> Display for SimpleGraph<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy,
-    Weight: Display + Eq + Hash + Copy,
+    Id: Display + Eq + Copy,
+    Weight: Display + Eq + Copy,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         super::display_fmt_graph(self, f)
@@ -105,8 +98,8 @@ where
 
 impl<'a, Id, Weight> Graph<'a> for SimpleGraph<Id, Weight>
 where
-    Id: Display + Copy + Eq + Hash + 'a,
-    Weight: Display + Eq + Hash + Copy + 'a,
+    Id: Display + Copy + Eq + 'a,
+    Weight: Display + Eq + Copy + 'a,
 {
     type Id = Id;
     type Weight = Weight;
@@ -117,32 +110,32 @@ where
     }
 
     fn node(&self, id: &Id) -> Option<&Self::Node> {
-        self.nodes.get(id)
+        self.nodes.iter().find(|n| n.id() == *id)
     }
 
     fn nodes(&'a self) -> impl Iterator<Item = &'a Self::Node> {
-        self.nodes.values()
+        self.nodes.iter()
     }
 }
 
 pub struct SimpleGraphBuilder<Id, Weight>
 where
-    Id: Copy + Eq + Hash,
-    Weight: Copy + Eq + Hash,
+    Id: Copy + Eq,
+    Weight: Copy + Eq,
 {
     graph: SimpleGraph<Id, Weight>,
 }
 
 impl<Id, Weight> SimpleGraphBuilder<Id, Weight>
 where
-    Id: Copy + Eq + Hash,
-    Weight: Copy + Eq + Hash,
+    Id: Copy + Eq,
+    Weight: Copy + Eq,
 {
     fn new(name: &str) -> SimpleGraphBuilder<Id, Weight> {
         SimpleGraphBuilder {
             graph: SimpleGraph {
                 name: name.to_string(),
-                nodes: HashMap::new(),
+                nodes: Vec::new(),
             },
         }
     }
@@ -167,26 +160,41 @@ impl<'a> SimpleGraphBuilder<&'a str, u8> {
 
 impl<'a, Id, Weight> Builder<'a> for SimpleGraphBuilder<Id, Weight>
 where
-    Id: Display + Eq + Hash + Copy + 'a,
-    Weight: Display + Eq + Hash + Copy + 'a,
+    Id: Display + Eq + Copy + 'a,
+    Weight: Display + Eq + Copy + 'a,
 {
     type Id = Id;
     type Weight = Weight;
     type Graph = SimpleGraph<Id, Weight>;
 
     fn add_node(&mut self, id: Id) -> &mut <Self::Graph as Graph<'a>>::Node {
-        self.graph.nodes.entry(id).or_insert(SimpleNode {
-            id,
-            edges: HashSet::new(),
-        })
+        if let Some(i) = self.graph.nodes.iter().position(|n| n.id() == id) {
+            &mut self.graph.nodes[i]
+        } else {
+            self.graph.nodes.push(SimpleNode {
+                id,
+                edges: Vec::new(),
+            });
+            self.graph.nodes.last_mut().unwrap()
+        }
     }
 
     fn add_node_edge(&mut self, a: Id, b: Id, weight: Weight) {
-        self.add_node(a).edges.insert(SimpleEdge { a, b, weight });
+        let node = self.add_node(a);
+        if let Some(i) = node.edges.iter().position(|e| e.b() == b) {
+            node.edges[i].weight = weight;
+        } else {
+            node.edges.push(SimpleEdge { a, b, weight });
+        }
     }
 
     fn add_directed_edge(&mut self, a: Id, b: Id, weight: Weight) {
-        self.add_node(a).edges.insert(SimpleEdge { a, b, weight });
+        let node = self.add_node(a);
+        if let Some(i) = node.edges.iter().position(|e| e.b() == b) {
+            node.edges[i].weight = weight;
+        } else {
+            node.edges.push(SimpleEdge { a, b, weight });
+        }
         self.add_node(b);
     }
 
@@ -205,28 +213,28 @@ mod test {
         let mut builder = SimpleGraphBuilder::new("test");
         builder.add_edge(1, 2, 1);
         assert_eq!(builder.graph.nodes.len(), 2);
-        assert_eq!(builder.graph.nodes.get(&1).unwrap().edges.len(), 1);
-        assert_eq!(builder.graph.nodes.get(&2).unwrap().edges.len(), 1);
+        assert_eq!(builder.graph.node(&1).unwrap().edges.len(), 1);
+        assert_eq!(builder.graph.node(&2).unwrap().edges.len(), 1);
 
         builder.add_edge(1, 3, 1);
         assert_eq!(builder.graph.nodes.len(), 3);
-        assert_eq!(builder.graph.nodes.get(&1).unwrap().edges.len(), 2);
-        assert_eq!(builder.graph.nodes.get(&2).unwrap().edges.len(), 1);
-        assert_eq!(builder.graph.nodes.get(&3).unwrap().edges.len(), 1);
+        assert_eq!(builder.graph.node(&1).unwrap().edges.len(), 2);
+        assert_eq!(builder.graph.node(&2).unwrap().edges.len(), 1);
+        assert_eq!(builder.graph.node(&3).unwrap().edges.len(), 1);
 
         builder.add_edge(2, 3, 1);
         assert_eq!(builder.graph.nodes.len(), 3);
         assert_eq!(builder.graph.nodes.len(), 3);
-        assert_eq!(builder.graph.nodes.get(&1).unwrap().edges.len(), 2);
-        assert_eq!(builder.graph.nodes.get(&2).unwrap().edges.len(), 2);
-        assert_eq!(builder.graph.nodes.get(&3).unwrap().edges.len(), 2);
+        assert_eq!(builder.graph.node(&1).unwrap().edges.len(), 2);
+        assert_eq!(builder.graph.node(&2).unwrap().edges.len(), 2);
+        assert_eq!(builder.graph.node(&3).unwrap().edges.len(), 2);
 
         let graph = builder.build();
         assert_eq!(graph.nodes.len(), 3);
         assert_eq!(graph.nodes.len(), 3);
-        assert_eq!(graph.nodes.get(&1).unwrap().edges.len(), 2);
-        assert_eq!(graph.nodes.get(&2).unwrap().edges.len(), 2);
-        assert_eq!(graph.nodes.get(&3).unwrap().edges.len(), 2);
+        assert_eq!(graph.node(&1).unwrap().edges.len(), 2);
+        assert_eq!(graph.node(&2).unwrap().edges.len(), 2);
+        assert_eq!(graph.node(&3).unwrap().edges.len(), 2);
     }
 
     #[test]
