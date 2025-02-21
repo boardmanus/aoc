@@ -1,19 +1,22 @@
-use std::collections::{HashMap, HashSet};
+#![allow(dead_code)]
+
+use std::collections::HashSet;
 
 use aoc_utils::{
     dir::{Dir, Dir4},
-    grid::{Grid, Index},
+    grof,
+    grud::{Grid, GridPos},
 };
 
 struct Plot {
     vege: char,
-    locations: Vec<Index>,
+    locations: Vec<GridPos>,
 }
 
 impl Plot {
-    fn new(garden: &Garden, index: Index) -> Plot {
-        let vege = garden.0.at(index).unwrap();
-        let mut locations = garden.filter_connected(index);
+    fn new(garden: &Garden, index: GridPos) -> Plot {
+        let vege = garden.0.at(&index).unwrap();
+        let mut locations = garden.filter_connected_dfs(index);
         locations.sort();
         Plot { vege, locations }
     }
@@ -21,12 +24,44 @@ impl Plot {
     fn perimeter(&self, garden: &Garden) -> usize {
         self.locations
             .iter()
-            .map(|&i| 4 - garden.count_matches(i, self.vege))
+            .map(|&i| 4 - garden.0.neighbours(i).count())
             .sum()
     }
 
+    fn corners(&self, garden: &Garden) -> usize {
+        self.locations
+            .iter()
+            .map(|&pos| {
+                // Take all the corners for a position in the plot
+                [
+                    (Dir4::N, Dir4::E),
+                    (Dir4::S, Dir4::E),
+                    (Dir4::S, Dir4::W),
+                    (Dir4::N, Dir4::W),
+                ]
+                .into_iter()
+                // Get the vege in each corner pos
+                // NE => 1 3 SW => 2 0
+                //       0 2       3 1
+                .map(|v| [pos, pos + v.0, pos + v.1, pos + v.0 + v.1].map(|p| garden.0.at(&p)))
+                .filter(|p| {
+                    // keep if both side positions don't match, or bot side positions do match, and diag doesn't
+                    // y .  ||  x y  => corner
+                    // x y  ||  x x
+                    (p[0] != p[1] && p[0] != p[2]) || (p[0] == p[1] && p[0] == p[2] && p[0] != p[3])
+                })
+                .count()
+            })
+            .sum()
+    }
+
+    fn sides2(&self, garden: &Garden) -> usize {
+        // number of sides == number of corners
+        self.corners(garden)
+    }
+
     fn sides(&self, garden: &Garden) -> usize {
-        let mut all_edges: HashSet<(Index, Dir4)> =
+        let mut all_edges: HashSet<(GridPos, Dir4)> =
             self.locations
                 .iter()
                 .fold(HashSet::new(), |mut col, &index| {
@@ -41,12 +76,12 @@ impl Plot {
             let mut next_pos = start_pos + travel_dir;
             all_edges.remove(&(start_pos, start_dir));
             while start_pos != next_pos || start_dir != check_dir {
-                if garden.0.at(next_pos) != Some(self.vege) {
-                    next_pos = next_pos - travel_dir;
+                if garden.0.at(&next_pos) != Some(self.vege) {
+                    next_pos = next_pos - travel_dir.to_vec2d();
                     travel_dir = travel_dir.rotate_cw();
                     check_dir = check_dir.rotate_cw();
                     num_sides += 1;
-                } else if garden.0.at(next_pos + check_dir) == Some(self.vege) {
+                } else if garden.0.at(&(next_pos + check_dir)) == Some(self.vege) {
                     next_pos = next_pos + check_dir;
                     travel_dir = travel_dir.rotate_ccw();
                     check_dir = check_dir.rotate_ccw();
@@ -62,7 +97,7 @@ impl Plot {
 
     fn fence_cost(&self, garden: &Garden, discount: bool) -> usize {
         let value = if discount {
-            self.sides(garden)
+            self.sides2(garden)
         } else {
             self.perimeter(garden)
         };
@@ -71,70 +106,46 @@ impl Plot {
     }
 }
 
-struct Garden(Grid<char>);
+struct Garden(Grid<char, Dir4>);
 
 impl Garden {
     fn parse(input: &str) -> Garden {
-        Garden(Grid::<char>::parse(input))
+        Garden(Grid::<char, Dir4>::parse_walkable(input, |g, from, to| {
+            g.at(from) == g.at(to)
+        }))
     }
 
-    fn count_matches(&self, index: Index, vege: char) -> usize {
-        Dir4::cw()
-            .filter(|&d| self.0.matches(index + d, vege))
-            .count()
-    }
-
-    fn edge_dirs(&self, index: Index, vege: char, edges: &mut HashSet<(Index, Dir4)>) {
+    fn edge_dirs(&self, index: GridPos, vege: char, edges: &mut HashSet<(GridPos, Dir4)>) {
         Dir4::cw().for_each(|dir| {
-            if self.0.at(index + dir) != Some(vege) {
+            if self.0.at(&(index + dir)) != Some(vege) {
                 edges.insert((index, dir));
             }
         });
     }
 
-    pub fn filter_connected(&self, index: Index) -> Vec<Index> {
-        let mut searched: HashSet<Index> = HashSet::new();
-        let mut to_search = vec![index];
-        let mut connected = Vec::<Index>::new();
-        let vege = self.0.at(index);
-
-        while let Some(i) = to_search.pop() {
-            assert!(!searched.contains(&i));
-            connected.push(i);
-            Dir4::cw()
-                .map(|d| i + d)
-                .filter(|&i2| self.0.at(i2) == vege && !searched.contains(&i2))
-                .for_each(|i3| {
-                    if !to_search.contains(&i3) {
-                        to_search.push(i3);
-                    }
-                });
-            searched.insert(i);
-        }
-
-        connected
+    fn filter_connected_dfs(&self, index: GridPos) -> Vec<GridPos> {
+        let mut locations: Vec<GridPos> = Vec::new();
+        grof::algorithms::dfs(&self.0, index, |n| locations.push(*n));
+        locations
     }
 
-    fn find_plot(&self, index: Index) -> Plot {
-        Plot::new(self, index)
+    fn create_plots(&self) -> Vec<Plot> {
+        let mut used_locations: HashSet<GridPos> = HashSet::new();
+
+        self.0.iter_pos().fold(Vec::<Plot>::new(), |mut acc, v| {
+            if !used_locations.contains(&v) {
+                let plot = Plot::new(self, v);
+                plot.locations.iter().for_each(|&l| {
+                    used_locations.insert(l);
+                });
+                acc.push(plot);
+            }
+            acc
+        })
     }
 
     fn fence_cost(&self, discount: bool) -> usize {
-        let mut used_locations: HashSet<Index> = HashSet::new();
-
-        let plots = self
-            .0
-            .row_index_iter()
-            .fold(Vec::<Plot>::new(), |mut acc, v| {
-                if !used_locations.contains(&v.0) {
-                    let plot = self.find_plot(v.0);
-                    plot.locations.iter().for_each(|&l| {
-                        used_locations.insert(l);
-                    });
-                    acc.push(plot);
-                }
-                acc
-            });
+        let plots = self.create_plots();
         plots
             .iter()
             .map(|plot| plot.fence_cost(self, discount))
@@ -175,30 +186,30 @@ mod tests {
     #[test]
     fn test_plot_new() {
         let garden = Garden::parse(TEST_INPUT);
-        let plot = Plot::new(&garden, Index(0, 0));
+        let plot = Plot::new(&garden, GridPos::new(0, 0));
         let v = plot.locations.clone();
         let v2 = vec![
-            Index(0, 0),
-            Index(1, 0),
-            Index(2, 0),
-            Index(3, 0),
-            Index(0, 1),
-            Index(1, 1),
-            Index(2, 1),
-            Index(3, 1),
-            Index(2, 2),
-            Index(3, 2),
-            Index(4, 2),
-            Index(2, 3),
+            GridPos::new(0, 0),
+            GridPos::new(1, 0),
+            GridPos::new(2, 0),
+            GridPos::new(3, 0),
+            GridPos::new(0, 1),
+            GridPos::new(1, 1),
+            GridPos::new(2, 1),
+            GridPos::new(3, 1),
+            GridPos::new(2, 2),
+            GridPos::new(3, 2),
+            GridPos::new(4, 2),
+            GridPos::new(2, 3),
         ];
         assert_eq!(v, v2);
-        assert_eq!(garden.0.at(Index(0, 0)).unwrap(), plot.vege);
+        assert_eq!(garden.0.at(&GridPos::new(0, 0)).unwrap(), plot.vege);
     }
 
     #[test]
     fn test_plot_sides() {
         let garden = Garden::parse(TEST_INPUT_P2_1);
-        let plot = Plot::new(&garden, Index(2, 1));
+        let plot = Plot::new(&garden, GridPos::new(2, 1));
         assert_eq!(plot.sides(&garden), 8);
     }
     #[test]
