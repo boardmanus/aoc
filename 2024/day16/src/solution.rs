@@ -2,24 +2,24 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use aoc_utils::{
     dir::{Dir, Dir4},
-    grid::{Grid, Index},
+    grud::{Grid, GridPos},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Pos {
-    loc: Index,
+    loc: GridPos,
     dir: Dir4,
 }
 
 impl Pos {
-    fn new(loc: Index, dir: Dir4) -> Pos {
+    fn new(loc: GridPos, dir: Dir4) -> Pos {
         Pos { loc, dir }
     }
 }
 
 struct Paths {
     score: usize,
-    paths: Vec<HashSet<Index>>,
+    paths: Vec<HashSet<GridPos>>,
 }
 
 impl Paths {
@@ -30,24 +30,24 @@ impl Paths {
         }
     }
 
-    fn new(score: usize, path: &HashSet<Index>) -> Paths {
+    fn new(score: usize, path: &HashSet<GridPos>) -> Paths {
         Paths {
             score,
             paths: vec![path.clone()],
         }
     }
 
-    fn add(&mut self, path: &HashSet<Index>) {
+    fn add(&mut self, path: &HashSet<GridPos>) {
         self.paths.push(path.clone());
     }
 }
 
-fn find_min_path(grid: &Grid<char>) -> (usize, HashSet<Index>) {
+fn find_min_path(grid: &Grid<char, Dir4>) -> (usize, HashSet<GridPos>) {
     let start = grid.find('S').unwrap();
     let end = grid.find('E').unwrap();
     let mut paths = Paths::init();
     let mut visited: HashMap<Pos, usize> = HashMap::new();
-    let mut options: VecDeque<(Pos, usize, HashSet<Index>)> =
+    let mut options: VecDeque<(Pos, usize, HashSet<GridPos>)> =
         VecDeque::from([(Pos::new(start, Dir4::E), 0, HashSet::from([start]))]);
 
     while let Some((pos, score, path)) = options.pop_front() {
@@ -66,8 +66,8 @@ fn find_min_path(grid: &Grid<char>) -> (usize, HashSet<Index>) {
             }
             continue;
         }
-        let new_loc = pos.loc + pos.dir;
-        if let Some(c) = grid.at(new_loc) {
+        let new_loc = pos.loc + pos.dir.into();
+        if let Some(c) = grid.at(&new_loc) {
             if c != '#' {
                 let mut p = path.clone();
                 p.insert(new_loc);
@@ -91,16 +91,16 @@ fn find_min_path(grid: &Grid<char>) -> (usize, HashSet<Index>) {
 }
 
 pub fn part1(input: &str) -> usize {
-    let grid = Grid::<char>::parse(input);
+    let grid = Grid::<char, Dir4>::parse(input);
     let res = find_min_path(&grid);
     println!("{:?}", res.1);
     res.0
 }
 
 pub fn part2(input: &str) -> usize {
-    let mut grid = Grid::<char>::parse(input);
+    let mut grid = Grid::<char, Dir4>::parse(input);
     let res = find_min_path(&grid);
-    res.1.iter().for_each(|&i| grid.set(i, 'O'));
+    res.1.iter().for_each(|i| _ = grid.set(i, 'O'));
     res.1.len()
 }
 
@@ -130,18 +130,18 @@ mod tests {
 
     #[test]
     fn test_part2_1() {
-        let mut grid = Grid::<char>::parse(TEST_INPUT_P2_1);
+        let mut grid = Grid::<char, Dir4>::parse(TEST_INPUT_P2_1);
         let res = find_min_path(&grid);
-        res.1.iter().for_each(|&i| grid.set(i, 'O'));
+        res.1.iter().for_each(|i| _ = grid.set(i, 'O'));
         println!("{grid}");
         assert_eq!(grid.to_string(), TEST_OUTPUT_P2_1);
     }
 
     #[test]
     fn test_part2_2() {
-        let mut grid = Grid::<char>::parse(TEST_INPUT_P2_2);
+        let mut grid = Grid::<char, Dir4>::parse(TEST_INPUT_P2_2);
         let res = find_min_path(&grid);
-        res.1.iter().for_each(|&i| grid.set(i, 'O'));
+        res.1.iter().for_each(|i| _ = grid.set(i, 'O'));
         println!("{grid}");
         assert_eq!(grid.to_string(), TEST_OUTPUT_P2_2);
     }
