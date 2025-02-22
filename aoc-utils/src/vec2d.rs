@@ -1,9 +1,9 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Mul, Sub};
 
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num};
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub struct Vec2d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
@@ -28,6 +28,14 @@ impl<Scalar: Num> Sub for Vec2d<Scalar> {
 
     fn sub(self, rhs: Self) -> Self::Output {
         Vec2d::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl<Scalar: Num + Copy> Mul<Scalar> for Vec2d<Scalar> {
+    type Output = Self;
+
+    fn mul(self, rhs: Scalar) -> Self::Output {
+        Vec2d::new(self.x * rhs, self.y * rhs)
     }
 }
 

@@ -8,6 +8,11 @@ use crate::{
 };
 use std::{fmt::Display, marker::PhantomData, slice::Iter};
 
+#[derive(Debug)]
+pub enum Error {
+    BadSize,
+}
+
 pub type GridPos = Pos2d<i64>;
 pub type GridVec = DirVec;
 pub type Walkable<Item, D> = fn(g: &Grid<Item, D>, a: &GridPos, b: &GridPos) -> bool;
@@ -150,10 +155,6 @@ where
     }
 }
 
-pub enum Error {
-    BadSize,
-}
-
 impl<Item, D> Grid<Item, D>
 where
     Item: Copy + Eq,
@@ -236,6 +237,10 @@ where
 
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    pub fn fill(&mut self, item: Item) {
+        self.g.fill(item);
     }
 
     pub fn iter(&self) -> Iter<'_, Item> {
