@@ -1,30 +1,30 @@
 use aoc_utils::{
     dir::Dir4,
-    grid::{Grid, Index},
+    grud::{Grid, GridPos},
 };
 
-type WarehouseGrid = Grid<char>;
+type WarehouseGrid = Grid<char, Dir4>;
 type Directions = Vec<Dir4>;
 
-fn robot_pos(grid: &WarehouseGrid) -> Index {
+fn robot_pos(grid: &WarehouseGrid) -> GridPos {
     grid.find('@').unwrap()
 }
 
-fn move_ops(moves: &mut Vec<Index>, grid: &WarehouseGrid, from: Index, dir: Dir4) -> bool {
-    let to = from + dir;
-    let to_c = grid.at(to).unwrap();
+fn move_ops(moves: &mut Vec<GridPos>, grid: &WarehouseGrid, from: GridPos, dir: Dir4) -> bool {
+    let to = from + dir.into();
+    let to_c = grid.at(&to).unwrap();
     let ok_to_move = match to_c {
         '.' => true,
         'O' => move_ops(moves, grid, to, dir),
         '[' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::E, dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::E.into(), dir)
             }
             _ => move_ops(moves, grid, to, dir),
         },
         ']' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::W, dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::W.into(), dir)
             }
             _ => move_ops(moves, grid, to, dir),
         },
@@ -47,16 +47,16 @@ fn move_all(grid: &mut WarehouseGrid, directions: &Directions) {
     println!("{grid}");
 }
 
-fn move_robot(grid: &mut WarehouseGrid, robot: Index, dir: Dir4) -> Index {
-    let mut moves = Vec::<Index>::new();
+fn move_robot(grid: &mut WarehouseGrid, robot: GridPos, dir: Dir4) -> GridPos {
+    let mut moves = Vec::<GridPos>::new();
     if move_ops(&mut moves, grid, robot, dir) {
         moves.into_iter().for_each(|from| {
-            let to = from + dir;
-            let c = grid.at(from).unwrap();
-            grid.set(to, c);
-            grid.set(from, '.');
+            let to = from + dir.into();
+            let c = grid.at(&from).unwrap();
+            grid.set(&to, c);
+            grid.set(&from, '.');
         });
-        robot + dir
+        robot + dir.into()
     } else {
         robot
     }
@@ -98,16 +98,18 @@ fn parse_input(input: &str, double: bool) -> (WarehouseGrid, Directions) {
 pub fn part1(input: &str) -> usize {
     let (mut grid, directions) = parse_input(input, false);
     move_all(&mut grid, &directions);
-    let boxes = grid.filter_pos('O');
-    boxes.iter().map(|b| (b.0 + b.1 * 100) as usize).sum()
+    grid.filter_items('O')
+        .map(|b| (b.x + b.y * 100) as usize)
+        .sum()
 }
 
 pub fn part2(input: &str) -> usize {
     let (mut grid, directions) = parse_input(input, true);
     println!("{grid}");
     move_all(&mut grid, &directions);
-    let boxes = grid.filter_pos('[');
-    boxes.iter().map(|b| (b.0 + b.1 * 100) as usize).sum()
+    grid.filter_items('[')
+        .map(|b| (b.x + b.y * 100) as usize)
+        .sum()
 }
 
 #[cfg(test)]
