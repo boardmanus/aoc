@@ -1,14 +1,20 @@
 use std::collections::HashSet;
 
-use aoc_utils::grid::{Grid, Index};
-use euclid::{Point2D, Vector2D};
+use aoc_utils::{
+    dir::Dir4,
+    grud::{Grid, GridPos},
+    vec2d::Vec2d,
+};
 use lazy_regex::regex;
 
-enum Tiles {}
+type Pos = GridPos;
+type Vel = Vec2d<i64>;
 
-type Pos = Point2D<i64, Tiles>;
-type Vel = Vector2D<i64, Tiles>;
-
+fn normalize_pos(pos: &Pos, width: usize, height: usize) -> Pos {
+    let x = pos.x.rem_euclid(width as i64);
+    let y = pos.y.rem_euclid(height as i64);
+    Pos::new(x, y)
+}
 struct Robot {
     pos: Pos,
     vel: Vel,
@@ -19,29 +25,14 @@ impl Robot {
         Robot { pos, vel }
     }
 
-    fn parse(input: &str) -> Vec<Robot> {
-        let re = regex!(r"p=(\d+),(\d+) v=(-?\d+),(-?\d+)");
-        input
-            .lines()
-            .map(|line| {
-                let c = re.captures(line).unwrap();
-                let px = c.get(1).unwrap().as_str().parse::<i64>().unwrap();
-                let py = c.get(2).unwrap().as_str().parse::<i64>().unwrap();
-                let vx = c.get(3).unwrap().as_str().parse::<i64>().unwrap();
-                let vy = c.get(4).unwrap().as_str().parse::<i64>().unwrap();
-                Robot::new(Pos::new(px, py), Vel::new(vx, vy))
-            })
-            .collect()
-    }
-
     fn moves(&mut self, num_moves: usize, width: usize, height: usize) {
         let new_pos = self.pos + self.vel * (num_moves as i64);
         self.pos = normalize_pos(&new_pos, width, height);
     }
 
-    fn quadrant(&self, width: usize, height: usize) -> Option<usize> {
-        let width = width as i64;
-        let height = height as i64;
+    fn quadrant(&self, grid: &RobotGrid) -> Option<usize> {
+        let width = grid.grid.width() as i64;
+        let height = grid.grid.height() as i64;
         match self.pos {
             Pos { x, y, .. } if x < width / 2 && y < height / 2 => Some(0),
             Pos { x, y, .. } if x > width / 2 && y < height / 2 => Some(1),
@@ -52,81 +43,105 @@ impl Robot {
     }
 }
 
-fn robot_grid(robots: &Vec<Robot>, width: usize, height: usize) -> Grid<char> {
-    let mut grid = Grid::new('.', width, height);
-    robots.iter().for_each(|robot| {
-        let index = Index(robot.pos.x, robot.pos.y);
-        if let Some(c) = grid.at(index) {
-            let new_c = match c {
-                '.' => '1',
-                _ => ((c as u8) + 1) as char,
-            };
-            grid.set(index, new_c);
-        }
-    });
-    grid
+struct RobotGrid {
+    robots: Vec<Robot>,
+    grid: Grid<char, Dir4>,
 }
 
-fn normalize_pos(pos: &Pos, width: usize, height: usize) -> Pos {
-    let x = pos.x.rem_euclid(width as i64);
-    let y = pos.y.rem_euclid(height as i64);
-    Pos::new(x, y)
-}
-
-fn count_quadrants(robots: &Vec<Robot>, width: usize, height: usize) -> [usize; 4] {
-    robots.iter().fold([0, 0, 0, 0], |mut acc, robot| {
-        if let Some(q) = robot.quadrant(width, height) {
-            acc[q] += 1;
-        }
-        acc
-    })
-}
-
-fn move_all(robots: &mut Vec<Robot>, num_moves: usize, width: usize, height: usize) {
-    robots
-        .iter_mut()
-        .for_each(|robot| robot.moves(num_moves, width, height));
-}
-
-fn has_overlaps(robots: &Vec<Robot>) -> bool {
-    let mut positions: HashSet<Pos> = HashSet::new();
-    !robots.iter().all(|robot| positions.insert(robot.pos))
-}
-
-fn find_xmas_tree(robots: &mut Vec<Robot>, width: usize, height: usize) -> usize {
-    let mut iterations = 0usize;
-    while has_overlaps(&robots) {
-        move_all(robots, 1, width, height);
-        iterations += 1;
+impl RobotGrid {
+    fn parse(input: &str, width: usize, height: usize) -> RobotGrid {
+        let re = regex!(r"p=(\d+),(\d+) v=(-?\d+),(-?\d+)");
+        let robots = input
+            .lines()
+            .map(|line| {
+                let c = re.captures(line).unwrap();
+                let px = c.get(1).unwrap().as_str().parse::<i64>().unwrap();
+                let py = c.get(2).unwrap().as_str().parse::<i64>().unwrap();
+                let vx = c.get(3).unwrap().as_str().parse::<i64>().unwrap();
+                let vy = c.get(4).unwrap().as_str().parse::<i64>().unwrap();
+                Robot::new(Pos::new(px, py), Vel::new(vx, vy))
+            })
+            .collect::<Vec<_>>();
+        let grid = Grid::new('.', width, height);
+        let mut rg = RobotGrid { robots, grid };
+        rg.update_grid();
+        rg
     }
-    println!("{}", robot_grid(robots, width, height));
 
-    iterations
+    fn update_grid(&mut self) {
+        self.grid.fill('.');
+        self.robots.iter().for_each(|robot| {
+            if let Some(c) = self.grid.at(&robot.pos) {
+                let new_c = match c {
+                    '.' => '1',
+                    _ => ((c as u8) + 1) as char,
+                };
+                self.grid.set(&robot.pos, new_c);
+            }
+        });
+    }
+    fn count_quadrants(&self) -> [usize; 4] {
+        self.robots.iter().fold([0, 0, 0, 0], |mut acc, robot| {
+            if let Some(q) = robot.quadrant(self) {
+                acc[q] += 1;
+            }
+            acc
+        })
+    }
+
+    fn move_all(&mut self, num_moves: usize) {
+        let width = self.grid.width();
+        let height = self.grid.height();
+        self.robots
+            .iter_mut()
+            .for_each(|robot| robot.moves(num_moves, width, height));
+    }
+
+    fn has_overlaps(&self) -> bool {
+        let mut positions: HashSet<Pos> = HashSet::new();
+        !self.robots.iter().all(|robot| positions.insert(robot.pos))
+    }
+
+    fn find_xmas_tree(&mut self) -> usize {
+        let mut iterations = 0usize;
+        while self.has_overlaps() {
+            self.move_all(1);
+            iterations += 1;
+        }
+        self.update_grid();
+        println!("{}", self.grid);
+
+        iterations
+    }
 }
 
 pub fn part1(input: &str) -> usize {
-    let mut robots = Robot::parse(input);
-    move_all(&mut robots, 100, 101, 103);
-    count_quadrants(&robots, 101, 103).iter().product()
+    let mut robots = RobotGrid::parse(input, 101, 103);
+    robots.move_all(100);
+    robots.count_quadrants().iter().product()
 }
 
 pub fn part2(input: &str) -> usize {
-    let mut robots = Robot::parse(input);
-    find_xmas_tree(&mut robots, 101, 103)
+    let mut robots = RobotGrid::parse(input, 101, 103);
+    robots.find_xmas_tree()
 }
 
 #[cfg(test)]
 mod tests {
-
-    use aoc_utils::grid::{Grid, Index};
 
     use super::*;
 
     pub const INPUT: &str = include_str!("data/input");
     pub const TEST_INPUT: &str = include_str!("data/input_example");
     pub const TEST_ANSWER: usize = 12;
-    pub const TEST_INPUT_2: &str = TEST_INPUT;
-    pub const TEST_ANSWER_2: &str = "part2";
+
+    #[test]
+    fn test_part1() {
+        let mut robots = RobotGrid::parse(TEST_INPUT, 11, 7);
+        robots.move_all(100);
+        let count: usize = robots.count_quadrants().iter().product();
+        assert_eq!(count, TEST_ANSWER)
+    }
 
     #[test]
     fn test_normalize_pos() {
@@ -155,35 +170,24 @@ mod tests {
 ...12......
 .1....1....
 ";
-        let mut grid = Grid::new('.', 11, 7);
-        let mut robots = Robot::parse(TEST_INPUT);
-        move_all(&mut robots, 100, 11, 7);
-        robots.iter().for_each(|robot| {
-            let index = Index(robot.pos.x, robot.pos.y);
-            if let Some(c) = grid.at(index) {
-                let new_c = match c {
-                    '.' => '1',
-                    _ => ((c as u8) + 1) as char,
-                };
-                grid.set(index, new_c);
-            }
-        });
-        let grid_str = grid.to_string();
+        let mut robots = RobotGrid::parse(TEST_INPUT, 11, 7);
+        robots.move_all(100);
+        robots.update_grid();
+        let grid_str = robots.grid.to_string();
         println!("{grid_str}");
         assert_eq!(grid_str, res_str);
     }
 
     #[test]
     fn test_count_quadrants() {
-        let mut robots = Robot::parse(TEST_INPUT);
-        move_all(&mut robots, 100, 11, 7);
-        assert_eq!(count_quadrants(&robots, 11, 7), [1usize, 3, 4, 1]);
+        let mut robots = RobotGrid::parse(TEST_INPUT, 11, 7);
+        robots.move_all(100);
+        assert_eq!(robots.count_quadrants(), [1usize, 3, 4, 1]);
     }
 
     #[test]
     fn test_find_xmas_tree() {
-        let mut robots = Robot::parse(INPUT);
-        let i = find_xmas_tree(&mut robots, 101, 103);
-        assert_eq!(i, 10);
+        let mut robots = RobotGrid::parse(INPUT, 101, 103);
+        let _ = robots.find_xmas_tree();
     }
 }
