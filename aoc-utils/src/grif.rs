@@ -1,4 +1,5 @@
 pub mod algorithms;
+pub mod iterators;
 pub mod simple;
 use std::fmt::Display;
 

@@ -1,4 +1,4 @@
-pub mod grof;
+pub mod grif;
 
 use enum_iterator::Sequence;
 

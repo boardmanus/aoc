@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::hash::Hash;
 
@@ -6,24 +6,45 @@ use graphviz_rust::dot_structures as dots;
 
 use super::{Builder, Graph};
 
+type FnEdgeWeight<NodeId, Weight> = fn(from: &NodeId, to: &NodeId) -> Weight;
+
+#[derive(Clone, Copy)]
+enum EdgeWeight<NodeId, Weight> {
+    Static(Weight),
+    Dynamic(FnEdgeWeight<NodeId, Weight>),
+}
+
+impl<NodeId, Weight> EdgeWeight<NodeId, Weight>
+where
+    NodeId: Copy,
+    Weight: Copy,
+{
+    fn weight(&self, from: &NodeId, to: &NodeId) -> Weight {
+        match self {
+            EdgeWeight::Static(w) => *w,
+            EdgeWeight::Dynamic(f) => f(from, to),
+        }
+    }
+}
+
 struct Node<NodeId, NodeValue, Weight> {
     id: NodeId,
     value: NodeValue,
-    edges: HashMap<NodeId, Weight>,
+    edges: BTreeMap<NodeId, EdgeWeight<NodeId, Weight>>,
 }
 
 pub struct SimpleGraph<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord,
     Weight: Copy + Eq + Hash,
 {
     name: String,
-    nodes: HashMap<NodeId, Node<NodeId, NodeValue, Weight>>,
+    nodes: BTreeMap<NodeId, Node<NodeId, NodeValue, Weight>>,
 }
 
 impl<NodeId, NodeValue, Weight> SimpleGraph<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash + Display,
+    NodeId: Copy + Eq + Ord + Display,
     Weight: Copy + Eq + Hash,
 {
     pub fn to_viz(&self, digraph: bool) -> dots::Graph {
@@ -33,7 +54,7 @@ where
 
 impl<NodeId, NodeValue, Weight> Display for SimpleGraph<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash + Display,
+    NodeId: Copy + Eq + Ord + Display,
     NodeValue: Display,
     Weight: Copy + Eq + Hash + Display,
 {
@@ -44,7 +65,7 @@ where
 
 impl<NodeId, NodeValue, Weight> Graph for SimpleGraph<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord,
     Weight: Copy + Eq + Hash,
 {
     type NodeId = NodeId;
@@ -64,16 +85,17 @@ where
     }
 
     fn node_edges(&self, node: Self::NodeId) -> impl Iterator<Item = (Self::NodeId, Self::Weight)> {
-        self.nodes
-            .get(&node)
-            .into_iter()
-            .flat_map(|node| node.edges.iter().map(|(&to, &weight)| (to, weight)))
+        self.nodes.get(&node).into_iter().flat_map(|node| {
+            node.edges
+                .iter()
+                .map(|(&to, &edge_weight)| (to, edge_weight.weight(&node.id, &to)))
+        })
     }
 }
 
 pub struct SimpleGraphBuilder<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord,
     Weight: Copy + Eq + Hash,
 {
     graph: SimpleGraph<NodeId, NodeValue, Weight>,
@@ -81,14 +103,14 @@ where
 
 impl<NodeId, NodeValue, Weight> SimpleGraphBuilder<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash + Display,
+    NodeId: Copy + Eq + Ord + Display,
     Weight: Copy + Eq + Hash,
 {
     fn new(name: &str) -> SimpleGraphBuilder<NodeId, NodeValue, Weight> {
         SimpleGraphBuilder {
             graph: SimpleGraph {
                 name: name.to_string(),
-                nodes: HashMap::new(),
+                nodes: BTreeMap::new(),
             },
         }
     }
@@ -117,7 +139,7 @@ impl<'a> SimpleGraphBuilder<&'a str, char, u8> {
 
 impl<NodeId, NodeValue, Weight> Builder for SimpleGraphBuilder<NodeId, NodeValue, Weight>
 where
-    NodeId: Copy + Eq + Hash + Copy,
+    NodeId: Copy + Eq + Ord + Copy,
     NodeValue: Default,
     Weight: Copy + Eq + Hash,
 {
@@ -130,7 +152,7 @@ where
         self.graph.nodes.entry(id).or_insert(Node {
             id,
             value: NodeValue::default(),
-            edges: HashMap::new(),
+            edges: BTreeMap::new(),
         });
         self
     }
@@ -138,7 +160,7 @@ where
     fn add_node_edge(&mut self, a: NodeId, b: NodeId, weight: Weight) -> &mut Self {
         self.add_node(a);
         self.graph.nodes.entry(a).and_modify(|n| {
-            n.edges.insert(b, weight);
+            n.edges.insert(b, EdgeWeight::Static(weight));
         });
         self
     }
@@ -147,7 +169,7 @@ where
         self.add_node(a);
         self.add_node(b);
         self.graph.nodes.entry(a).and_modify(|n| {
-            n.edges.insert(b, weight);
+            n.edges.insert(b, EdgeWeight::Static(weight));
         });
         self
     }

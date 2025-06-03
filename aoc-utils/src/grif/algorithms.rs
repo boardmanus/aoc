@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use num_traits::{AsPrimitive, Unsigned};
+
 use super::Graph;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -214,36 +216,82 @@ where
     Some(max)
 }
 
-fn dfs_r<G, F>(graph: &G, id: G::NodeId, visited: &mut HashSet<G::NodeId>, f: &mut F)
+struct PQ<NodeId>
 where
-    G: Graph,
-    G::NodeId: Eq + Hash,
-    F: FnMut(&G::NodeId),
+    NodeId: Eq + Hash,
 {
-    if visited.contains(&id) {
-        return;
+    q: Vec<NodeId>,
+}
+
+impl<NodeId> PQ<NodeId>
+where
+    NodeId: Eq + Hash,
+{
+    fn new(start: NodeId) -> PQ<NodeId> {
+        PQ { q: vec![start] }
     }
-    visited.insert(id);
-    f(&id);
-    for edge in graph.node_edges(id) {
-        dfs_r(graph, edge.0, visited, f);
+
+    fn push(&mut self, node: NodeId) {
+        self.q.push(node);
+    }
+
+    fn sort(&mut self, distances: &HashMap<NodeId, (usize, Option<NodeId>)>) {
+        self.q.sort_by(|a, b| distances[b].0.cmp(&distances[a].0));
+    }
+
+    fn pop(&mut self) -> Option<NodeId> {
+        self.q.pop()
     }
 }
 
-pub fn dfs<G, F>(graph: &G, id: G::NodeId, mut f: F)
+pub fn shortest_path_djikstra<G>(
+    graph: &G,
+    start: G::NodeId,
+    end: G::NodeId,
+) -> Option<Vec<G::NodeId>>
 where
     G: Graph,
-    G::NodeId: Eq + Hash,
-    F: FnMut(&G::NodeId),
+    G::NodeId: Copy + Eq + Hash,
+    G::Weight: Unsigned + AsPrimitive<usize>,
 {
+    let mut distances: HashMap<G::NodeId, (usize, Option<G::NodeId>)> = HashMap::new();
+    distances.insert(start, (0, None));
     let mut visited: HashSet<G::NodeId> = HashSet::new();
-    dfs_r(graph, id, &mut visited, &mut f);
+    let mut pq = PQ::new(start);
+
+    while let Some(node) = pq.pop() {
+        if node == end {
+            let mut path = vec![node];
+            let mut from = distances[&node].1;
+            while let Some(prev) = from {
+                path.push(prev);
+                from = distances[&prev].1;
+            }
+            path.reverse();
+            return Some(path);
+        }
+        graph
+            .node_edges(node)
+            .filter(|(neighbour, _weight)| !visited.contains(neighbour))
+            .for_each(|(neighbour, weight)| {
+                let new_dist = distances[&node].0 + weight.as_();
+                let distance = distances.entry(neighbour).or_insert((new_dist, Some(node)));
+                if new_dist < distance.0 {
+                    *distance = (new_dist, Some(node));
+                }
+                pq.push(neighbour);
+            });
+        visited.insert(node);
+        pq.sort(&distances);
+    }
+
+    None
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::grof::simple as sh;
+    use crate::grif::simple as sh;
 
     use super::*;
 
@@ -286,5 +334,12 @@ mod tests {
         let b = [2, 4, 6];
         let diff = difference(&a, &b);
         assert_eq!(diff, vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn test_djikstra() {
+        let g = sh::SimpleGraphBuilder::parse("djikstra", "a-b\na-c\nb-d\nb-e\nc-e", "-").unwrap();
+        let path = shortest_path_djikstra(&g, "a", "e").unwrap();
+        assert_eq!(path, vec!["a", "c", "e"]);
     }
 }

@@ -1,5 +1,5 @@
-use aoc_utils::grof::algorithms as grofalg;
-use aoc_utils::grof::simple as grofsimp;
+use aoc_utils::grif::algorithms as grofalg;
+use aoc_utils::grif::simple as grofsimp;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
