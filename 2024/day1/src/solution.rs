@@ -1,41 +1,38 @@
 use crate::utils::sorted;
 
 fn parse_input(input: &str) -> (Vec<u32>, Vec<u32>) {
-    let v = input
+    let v: Vec<(u32, u32)> = input
         .lines()
-        .map(|line| {
-            let mut v = line
-                .split_whitespace()
-                .map(|v_str| v_str.parse::<u32>().unwrap());
-            (v.next().unwrap(), v.next().unwrap())
+        .filter_map(|line| {
+            let mut vals = line.split_whitespace();
+            let l = vals.next()?.parse::<u32>().ok()?;
+            let r = vals.next()?.parse::<u32>().ok()?;
+            Some((l, r))
         })
-        .collect::<Vec<_>>();
-
+        .collect();
     (
-        v.iter().map(|p| p.0).collect::<Vec<_>>(),
-        v.iter().map(|p| p.1).collect::<Vec<_>>(),
+        v.iter().map(|p| p.0).collect(),
+        v.into_iter().map(|p| p.1).collect(),
     )
 }
 
 fn sum_differences(left: &[u32], right: &[u32]) -> u32 {
-    assert_eq!(left.len(), right.len());
     let left_s = sorted(left);
     let right_s = sorted(right);
-
-    (0..left_s.len())
-        .map(|i| (left_s[i] as i32 - right_s[i] as i32).abs())
-        .sum::<i32>() as u32
-}
-
-pub fn part1(input: &str) -> u32 {
-    let (left, right) = parse_input(input);
-    sum_differences(&left, &right)
+    (0..left.len())
+        .map(|i| left_s[i].abs_diff(right_s[i]))
+        .sum()
 }
 
 fn similarity_score(left: &[u32], right: &[u32]) -> u32 {
     left.iter()
         .map(|v| v * (right.iter().filter(|&ov| v == ov).count() as u32))
-        .sum::<u32>()
+        .sum()
+}
+
+pub fn part1(input: &str) -> u32 {
+    let (left, right) = parse_input(input);
+    sum_differences(&left, &right)
 }
 
 pub fn part2(input: &str) -> u32 {
