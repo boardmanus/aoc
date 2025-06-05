@@ -9,6 +9,7 @@ use super::{Builder, Graph};
 type FnEdgeWeight<NodeId, Weight> = fn(from: &NodeId, to: &NodeId) -> Weight;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum EdgeWeight<NodeId, Weight> {
     Static(Weight),
     Dynamic(FnEdgeWeight<NodeId, Weight>),

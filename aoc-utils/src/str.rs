@@ -1,6 +1,10 @@
+use std::str::FromStr;
+
 pub trait AocStr {
     fn first(&self) -> Option<char>;
     fn nth(&self, n: usize) -> char;
+    fn parse_lines<V>(&self, f: impl FnMut(&str) -> V) -> Vec<V>;
+    fn parse_nums<N: FromStr>(&self) -> Vec<N>;
 }
 
 impl AocStr for str {
@@ -10,6 +14,16 @@ impl AocStr for str {
 
     fn nth(&self, n: usize) -> char {
         self.chars().nth(n).unwrap()
+    }
+
+    fn parse_lines<V>(&self, f: impl FnMut(&str) -> V) -> Vec<V> {
+        self.lines().map(f).collect::<Vec<_>>()
+    }
+
+    fn parse_nums<N: FromStr>(&self) -> Vec<N> {
+        self.split_whitespace()
+            .filter_map(|s| s.parse::<N>().ok())
+            .collect()
     }
 }
 

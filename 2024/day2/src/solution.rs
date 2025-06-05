@@ -1,12 +1,7 @@
+use aoc_utils::str::AocStr;
+
 pub fn parse_input(input: &str) -> Vec<Vec<i32>> {
-    input
-        .lines()
-        .map(|line| {
-            line.split_whitespace()
-                .map(|num_str| num_str.parse::<i32>().unwrap())
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>()
+    input.parse_lines(|line| line.parse_nums())
 }
 
 pub fn is_safe_diff(maybe_last_sign: Option<i32>, a: i32, b: i32) -> (bool, Option<i32>) {
