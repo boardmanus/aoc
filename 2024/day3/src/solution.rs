@@ -24,11 +24,18 @@ impl Op {
         }
     }
 
+    fn do_mul(&self) -> Option<bool> {
+        match self {
+            Op::Do => Some(true),
+            Op::Dont => Some(false),
+            Op::Mul(_, _) => None,
+        }
+    }
+
     fn value(&self) -> i64 {
         match self {
-            Op::Do => 1,
-            Op::Dont => 0,
             Op::Mul(a, b) => a * b,
+            _ => 0,
         }
     }
 }
@@ -56,14 +63,49 @@ fn parse_mul(input: &str, all: bool) -> Vec<Op> {
     muls
 }
 
+struct ParseOps {
+    re: Regex,
+}
+
+impl ParseOps {
+    fn new() -> Self {
+        let re = Regex::new(r"mul\((\d+),(\d+)\)|do\(\)|don't\(\)").unwrap();
+        ParseOps { re }
+    }
+
+    fn parse<'a>(&'a self, input: &'a str) -> impl Iterator<Item = Op> + 'a {
+        self.re
+            .captures_iter(input)
+            .filter_map(|cap| match cap.get(0)?.as_str() {
+                "do()" => Some(Op::Do),
+                "don't()" => Some(Op::Dont),
+                _ => Some(Op::Mul(
+                    cap.get(1)?.as_str().parse().ok()?,
+                    cap.get(2)?.as_str().parse().ok()?,
+                )),
+            })
+    }
+}
+
 pub fn part1(input: &str) -> i64 {
-    let mults = parse_mul(input, true);
-    mults.iter().fold(0, |coll, mul| coll + mul.value())
+    ParseOps::new().parse(input).map(|op| op.value()).sum()
 }
 
 pub fn part2(input: &str) -> i64 {
-    let mults = parse_mul(input, false);
-    mults.iter().fold(0, |coll, mul| coll + mul.value())
+    let mut do_mul = true;
+    ParseOps::new()
+        .parse(input)
+        .map(|op| match op.do_mul() {
+            Some(do_mul_op) => {
+                do_mul = do_mul_op;
+                0
+            }
+            None => match do_mul {
+                true => op.value(),
+                false => 0,
+            },
+        })
+        .sum()
 }
 
 #[cfg(test)]
@@ -75,6 +117,26 @@ mod tests {
     pub const TEST_ANSWER: i64 = 161;
     pub const TEST_INPUT_2: &str = include_str!("data/input_example2");
     pub const TEST_ANSWER_2: i64 = 48;
+
+    #[test]
+    fn test_re_captures_iter() {
+        let re = Regex::new(r"(1|2|3)").unwrap();
+        let captures: Vec<_> = re
+            .captures_iter("1234321")
+            .filter_map(|x| x.get(1))
+            .map(|x| {
+                println!("{}", x.as_str());
+                x.as_str()
+            })
+            .collect();
+        assert_eq!(captures.len(), 6);
+        assert_eq!(captures[0], "1");
+        assert_eq!(captures[1], "2");
+        assert_eq!(captures[2], "3");
+        assert_eq!(captures[3], "3");
+        assert_eq!(captures[4], "2");
+        assert_eq!(captures[5], "1");
+    }
 
     #[test]
     fn test_mul_from() {
