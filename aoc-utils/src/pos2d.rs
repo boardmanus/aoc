@@ -6,7 +6,10 @@ use std::{
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num, Signed};
 
-use crate::vec2d::Vec2d;
+use crate::{
+    dir::{Dir4, Dir8},
+    vec2d::Vec2d,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Pos2d<Scalar: Num> {
@@ -53,11 +56,43 @@ impl<Scalar: Num> Add<Vec2d<Scalar>> for Pos2d<Scalar> {
     }
 }
 
+impl<Scalar: Num + Copy + From<i64>> Add<Dir4> for Pos2d<Scalar> {
+    type Output = Self;
+
+    fn add(self, rhs: Dir4) -> Self::Output {
+        self.add(Vec2d::from(rhs))
+    }
+}
+
+impl<Scalar: Num + Copy + From<i64>> Add<Dir8> for Pos2d<Scalar> {
+    type Output = Self;
+
+    fn add(self, rhs: Dir8) -> Self::Output {
+        self.add(Vec2d::from(rhs))
+    }
+}
+
 impl<Scalar: Num> Sub<Vec2d<Scalar>> for Pos2d<Scalar> {
     type Output = Self;
 
     fn sub(self, rhs: Vec2d<Scalar>) -> Self::Output {
         Pos2d::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl<Scalar: Num + Copy + From<i64>> Sub<Dir4> for Pos2d<Scalar> {
+    type Output = Self;
+
+    fn sub(self, rhs: Dir4) -> Self::Output {
+        self.sub(Vec2d::from(rhs))
+    }
+}
+
+impl<Scalar: Num + Copy + From<i64>> Sub<Dir8> for Pos2d<Scalar> {
+    type Output = Self;
+
+    fn sub(self, rhs: Dir8) -> Self::Output {
+        self.sub(Vec2d::from(rhs))
     }
 }
 

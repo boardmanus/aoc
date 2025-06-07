@@ -3,6 +3,8 @@ use std::ops::{Add, Mul, Sub};
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num};
 
+use crate::dir::{Dir, Dir4, Dir8};
+
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub struct Vec2d<Scalar: Num> {
     pub x: Scalar,
@@ -36,6 +38,20 @@ impl<Scalar: Num + Copy> Mul<Scalar> for Vec2d<Scalar> {
 
     fn mul(self, rhs: Scalar) -> Self::Output {
         Vec2d::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl<Scalar: Num + Copy + From<i64>> From<Dir8> for Vec2d<Scalar> {
+    fn from(dir: Dir8) -> Self {
+        let v = dir.to_vec2d();
+        Vec2d::new(v.x.into(), v.y.into())
+    }
+}
+
+impl<Scalar: Num + Copy + From<i64>> From<Dir4> for Vec2d<Scalar> {
+    fn from(dir: Dir4) -> Self {
+        let v = dir.to_vec2d();
+        Vec2d::new(v.x.into(), v.y.into())
     }
 }
 

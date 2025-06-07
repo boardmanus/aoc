@@ -1,56 +1,51 @@
 use aoc_utils::{
     dir::{Dir, Dir8},
-    grid::{Grid, Index},
-    str::AocStr,
+    grud, pos2d,
 };
 
 const SEARCH: &str = "XMAS";
+type Grid = grud::Grid<char, Dir8>;
+type Pos2d = pos2d::Pos2d<i64>;
 
 trait Day4Grid {
-    fn matches_in_dir(&self, pos: Index, s: &str, dir: Dir8) -> bool;
-    fn count_matches(&self, pos: Index, s: &str) -> usize;
+    fn matches_in_dir(&self, pos: Pos2d, s: &str, dir: Dir8) -> bool;
+    fn count_matches(&self, pos: Pos2d, s: &str) -> usize;
 }
 
-impl Day4Grid for Grid<char> {
-    fn matches_in_dir(&self, pos: Index, s: &str, dir: Dir8) -> bool {
+impl Day4Grid for Grid {
+    fn matches_in_dir(&self, pos: Pos2d, s: &str, dir: Dir8) -> bool {
         let mut next_pos = pos;
         s.chars().all(|c| {
-            let good = self.at(next_pos) == Some(c);
+            let good = self.at(&next_pos) == Some(c);
             next_pos = next_pos + dir;
             good
         })
     }
 
-    fn count_matches(&self, pos: Index, s: &str) -> usize {
+    fn count_matches(&self, pos: Pos2d, s: &str) -> usize {
         Dir8::cw()
-            .into_iter()
             .filter(|&dir| self.matches_in_dir(pos, s, dir))
             .count()
     }
 }
 
 pub fn part1(input: &str) -> usize {
-    let grid = Grid::<char>::parse(input);
-    let start = grid.filter_pos(SEARCH.first().unwrap());
-    start
-        .iter()
-        .map(|&pos| grid.count_matches(pos, SEARCH))
+    let grid = Grid::parse(input);
+    grid.filter_items('X')
+        .map(|pos| grid.count_matches(pos, SEARCH))
         .sum()
 }
 
 pub fn part2(input: &str) -> usize {
-    let grid = Grid::<char>::parse(input);
-    let start = grid.filter_pos('A');
-    start
-        .iter()
+    let corners = [Dir8::NW, Dir8::NE, Dir8::SE, Dir8::SW];
+    let grid = Grid::parse(input);
+    grid.filter_items('A')
         .filter(|&pos| {
-            ((grid.matches(*pos + Index(-1, -1), 'M') && grid.matches(*pos + Index(1, 1), 'S'))
-                || (grid.at(*pos + Index(-1, -1)) == Some('S')
-                    && grid.at(*pos + Index(1, 1)) == Some('M')))
-                && ((grid.at(*pos + Index(-1, 1)) == Some('M')
-                    && grid.at(*pos + Index(1, -1)) == Some('S'))
-                    || (grid.at(*pos + Index(-1, 1)) == Some('S')
-                        && grid.at(*pos + Index(1, -1)) == Some('M')))
+            let num_matches = corners
+                .iter()
+                .filter(|&&dir| grid.matches_in_dir(pos - dir, "MAS", dir))
+                .count();
+            num_matches == 2
         })
         .count()
 }
@@ -67,8 +62,8 @@ mod tests {
 
     #[test]
     fn test_grid_count_matches() {
-        let g = Grid::<char>::parse("1234\n1234\n5678\n");
-        assert_eq!(g.count_matches(Index(2, 0), &"34"), 2);
+        let g = Grid::parse("1234\n1234\n5678\n");
+        assert_eq!(g.count_matches(Pos2d::new(2, 0), &"34"), 2);
     }
 
     #[test]
