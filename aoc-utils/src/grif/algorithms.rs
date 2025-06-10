@@ -4,7 +4,8 @@ use num_traits::{AsPrimitive, Unsigned};
 
 use super::Graph;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fmt::Display;
 use std::hash::Hash;
 
 fn backtrack_cycle<G>(
@@ -288,12 +289,91 @@ where
     None
 }
 
+fn is_acyclic_r<G>(
+    graph: &G,
+    node: G::NodeId,
+    undirected: bool,
+    last_node: Option<G::NodeId>,
+    visited: &mut BTreeSet<G::NodeId>,
+    queue: &mut Vec<G::NodeId>,
+) -> bool
+where
+    G: Graph + ?Sized,
+    G::NodeId: Copy + Eq + Hash + Display,
+{
+    if queue.contains(&node) {
+        // Cycle detected (back-edge)
+        return false;
+    }
+
+    if visited.contains(&node) {
+        // Already visited, no cycle (not a back-edge)
+        return true;
+    }
+
+    visited.insert(node);
+    queue.push(node);
+
+    for edge in graph.node_edges(node) {
+        if undirected && last_node == Some(edge.0) {
+            // If the edge points to the last node, skip it
+            continue;
+        }
+        if !is_acyclic_r(graph, edge.0, undirected, Some(node), visited, queue) {
+            // Cycle detected in recursion
+            return false;
+        }
+    }
+
+    let n = queue.pop();
+    assert!(n == Some(node));
+
+    true
+}
+
+pub fn is_acyclic<G>(graph: &G, start: G::NodeId, undirected: bool) -> bool
+where
+    G: Graph + ?Sized,
+    G::NodeId: Copy + Eq + Hash + Display,
+{
+    let mut visited = BTreeSet::<G::NodeId>::new();
+    let mut queue = Vec::<G::NodeId>::new();
+    is_acyclic_r(graph, start, undirected, None, &mut visited, &mut queue)
+}
+
 #[cfg(test)]
 mod tests {
 
     use crate::grif::simple as sh;
 
     use super::*;
+
+    #[test]
+    fn test_is_acyclic() {
+        let g = sh::SimpleGraphBuilder::<&str>::parse("acyclic", "a-b\nb-c\nc-d", "-").unwrap();
+        assert!(is_acyclic(&g, "a", true));
+        let g = sh::SimpleGraphBuilder::<&str>::parse("cyclic", "a-b\nb-c\nc-a", "-").unwrap();
+        assert!(!is_acyclic(&g, "a", true));
+        let g = sh::SimpleGraphBuilder::<&str>::parse("cyclic", "a-b\nb-c\na-c", "-").unwrap();
+        assert!(!is_acyclic(&g, "a", true));
+        let g = sh::SimpleGraphBuilder::<&str>::parse_directed("acyclic", "a-b\nb-c\na-c", "-")
+            .unwrap();
+        assert!(is_acyclic(&g, "a", false));
+        let g = sh::SimpleGraphBuilder::<&str>::parse_directed(
+            "acyclic",
+            "a-b\nb-c\nc-d\na-e\ne-f\nf-d\nd-g",
+            "-",
+        )
+        .unwrap();
+        assert!(is_acyclic(&g, "a", false));
+        let g = sh::SimpleGraphBuilder::<&str>::parse_directed(
+            "cyclic",
+            "a-b\nb-c\nc-d\ne-a\nf-e\nd-f\nd-g",
+            "-",
+        )
+        .unwrap();
+        assert!(!is_acyclic(&g, "a", false));
+    }
 
     #[test]
     fn test_find_maximal_clique() {
@@ -320,9 +400,12 @@ mod tests {
 
     #[test]
     fn test_find_maximum_clique() {
-        let g =
-            sh::SimpleGraphBuilder::parse("clique", "a-b\na-c\na-d\nb-c\nb-d\na-e\nb-e\nc-e", "-")
-                .unwrap();
+        let g = sh::SimpleGraphBuilder::<&str>::parse(
+            "clique",
+            "a-b\na-c\na-d\nb-c\nb-d\na-e\nb-e\nc-e",
+            "-",
+        )
+        .unwrap();
         let mut max = find_maximum_clique(&g).unwrap();
         max.sort();
         assert_eq!(max, vec!["a", "b", "c", "e"]);
@@ -338,7 +421,8 @@ mod tests {
 
     #[test]
     fn test_djikstra() {
-        let g = sh::SimpleGraphBuilder::parse("djikstra", "a-b\na-c\nb-d\nb-e\nc-e", "-").unwrap();
+        let g = sh::SimpleGraphBuilder::<&str>::parse("djikstra", "a-b\na-c\nb-d\nb-e\nc-e", "-")
+            .unwrap();
         let path = shortest_path_djikstra(&g, "a", "e").unwrap();
         assert_eq!(path, vec!["a", "c", "e"]);
     }

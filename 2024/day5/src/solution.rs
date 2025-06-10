@@ -1,7 +1,17 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    fs,
 };
+
+use aoc_utils::{
+    grif::{simple, Graph},
+    str::AocStr,
+};
+use graphviz_rust::{cmd::Format, exec, printer::PrinterContext};
+
+type SimpleGraph<'a> = simple::SimpleGraph<u64>;
+type SimpleGraphBuilder<'a> = simple::SimpleGraphBuilder<u64>;
 
 #[derive(Debug, Copy, Clone)]
 struct Rule {
@@ -112,6 +122,35 @@ fn good_order(ordering: &PageOrdering, page_nums: &Vec<u64>) -> bool {
         .all(|index| is_before(ordering, page_nums, page_nums[index], page_nums[index + 1]))
 }
 
+fn good_order_graph(
+    graph: &SimpleGraph,
+    pages: &Vec<u64>,
+    cache: &mut HashMap<(u64, u64), bool>,
+) -> bool {
+    let good = pages
+        .iter()
+        .zip(pages.iter().skip(1))
+        .all(|(&before, &after)| {
+            if let Some(&good_order) = cache.get(&(before, after)) {
+                good_order
+            } else {
+                let good_order = graph
+                    .dfs(before, |n| pages.contains(&n))
+                    .find(|&x| x == after)
+                    .is_some()
+                    || graph
+                        .dfs(after, |n| pages.contains(&n))
+                        .find(|&x| x == before)
+                        .is_none();
+
+                cache.insert((before, after), good_order);
+                cache.insert((after, before), !good_order);
+                good_order
+            }
+        });
+    good
+}
+
 fn reorder_pages(ordering: &PageOrdering, page_nums: &Vec<u64>) -> Vec<u64> {
     let mut good_order = page_nums.clone();
     good_order.sort_by(|&a, &b| {
@@ -126,39 +165,108 @@ fn reorder_pages(ordering: &PageOrdering, page_nums: &Vec<u64>) -> Vec<u64> {
     good_order
 }
 
-pub fn part1(input: &str) -> u64 {
+fn reorder_pages_graph(graph: &SimpleGraph, page_nums: &Vec<u64>) -> Vec<u64> {
+    let mut good_order = page_nums.clone();
+    good_order.sort_by(|&a, &b| {
+        if graph
+            .dfs(a, |n| page_nums.contains(&n))
+            .find(|&x| x == b)
+            .is_some()
+        {
+            Ordering::Less
+        } else if a == b {
+            Ordering::Equal
+        } else {
+            Ordering::Greater
+        }
+    });
+    good_order
+}
+
+pub fn parse_graph(input: &str) -> (SimpleGraph, Vec<Vec<u64>>) {
+    let mut sections = input.split("\n\n");
+    let rule_input = sections.next().unwrap();
+    let page_input = sections.next().unwrap();
+    assert!(
+        sections.next().is_none(),
+        "Input should have exactly two sections"
+    );
+
+    let graph = SimpleGraphBuilder::parse_directed("pageorder", rule_input, "|").unwrap();
+    let pages = page_input.parse_lines(|line| line.parse_sep_nums::<u64>(","));
+    (graph, pages)
+}
+
+fn draw_graph(graph: &SimpleGraph) {
+    let viz = graph.to_viz(true);
+    let graph_svg = exec(
+        viz,
+        &mut PrinterContext::default(),
+        vec![Format::Svg.into()],
+    )
+    .unwrap();
+    fs::write("graph.svg", graph_svg).expect("Unable to write file");
+}
+
+pub fn part1_graph(input: &str) -> u64 {
+    let (graph, page_nums) = parse_graph(input);
+    println!("Graph: {}", graph);
+    let mut cache = HashMap::<(u64, u64), bool>::new();
+    page_nums
+        .iter()
+        .filter(|pages| good_order_graph(&graph, pages, &mut cache))
+        .map(|pages| pages[pages.len() / 2])
+        .sum()
+}
+
+pub fn part1_orig(input: &str) -> u64 {
     let (rules, page_nums) = parse_input(input);
     let page_order = page_ordering(&rules);
-    let good_orders = page_nums
+    page_nums
         .iter()
         .filter(|&pages| good_order(&page_order, pages))
-        .collect::<Vec<_>>();
-
-    good_orders
-        .iter()
         .map(|pages| pages[pages.len() / 2])
         .sum::<u64>()
 }
+pub fn part1(input: &str) -> u64 {
+    part1_graph(input)
+}
 
-pub fn part2(input: &str) -> u64 {
+pub fn part2_graph(input: &str) -> u64 {
+    let (graph, page_nums) = parse_graph(input);
+    let mut cache = HashMap::<(u64, u64), bool>::new();
+    page_nums
+        .iter()
+        .filter(|pages| !good_order_graph(&graph, pages, &mut cache))
+        .map(|bo| reorder_pages_graph(&graph, bo))
+        .map(|pages| pages[pages.len() / 2])
+        .sum()
+}
+
+pub fn part2_orig(input: &str) -> u64 {
     let (rules, page_nums) = parse_input(input);
     let page_order = page_ordering(&rules);
-    let bad_orders = page_nums
+    page_nums
         .iter()
         .filter(|&pages| !good_order(&page_order, pages))
-        .collect::<Vec<_>>();
-
-    bad_orders
-        .iter()
         .map(|bo| reorder_pages(&page_order, bo))
         .map(|pages| pages[pages.len() / 2])
-        .sum::<u64>()
+        .sum()
+}
+
+pub fn part2(input: &str) -> u64 {
+    part2_graph(input)
 }
 
 #[cfg(test)]
 mod tests {
 
+    use std::fs;
+
     use super::*;
+    use graphviz_rust::cmd::Format;
+    use graphviz_rust::exec;
+    use graphviz_rust::printer::PrinterContext;
 
     pub const TEST_INPUT: &str = include_str!("data/input_example");
     pub const TEST_ANSWER: u64 = 143;
@@ -173,6 +281,19 @@ mod tests {
             let hm = v.iter().collect::<HashSet<_>>();
             assert_eq!(hm.len(), v.len());
         });
+    }
+
+    #[test]
+    fn test_draw_graph() {
+        let (graph, _page_nums) = parse_graph(TEST_INPUT);
+        let viz = graph.to_viz(false);
+        let graph_svg = exec(
+            viz,
+            &mut PrinterContext::default(),
+            vec![Format::Svg.into()],
+        )
+        .unwrap();
+        fs::write("graph.svg", graph_svg).expect("Unable to write file");
     }
 
     #[test]

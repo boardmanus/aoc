@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 aoc-utils = { path = "../../aoc-utils" }
+graphviz-rust = "0.9.5"

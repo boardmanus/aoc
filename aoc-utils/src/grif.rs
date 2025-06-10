@@ -1,13 +1,12 @@
 pub mod algorithms;
 pub mod iterators;
 pub mod simple;
-use std::fmt::Display;
-
 use graphviz_rust::dot_generator as dotg;
 use graphviz_rust::dot_structures as dots;
+use std::fmt::Display;
 
 pub trait Graph {
-    type NodeId: Copy + Clone + PartialEq;
+    type NodeId: Copy + Clone + PartialEq + Ord;
     type NodeValue;
     type Weight;
 
@@ -31,6 +30,17 @@ pub trait Graph {
     fn edges(&self) -> impl Iterator<Item = (Self::NodeId, Self::NodeId, Self::Weight)> {
         self.nodes()
             .flat_map(|n| self.node_edges(n).map(move |e| (n, e.0, e.1)))
+    }
+
+    fn dfs<Pred>(&self, start: Self::NodeId, filter: Pred) -> impl Iterator<Item = Self::NodeId>
+    where
+        Pred: Fn(&Self::NodeId) -> bool,
+    {
+        iterators::DfsIter::new(self, start, filter)
+    }
+
+    fn bfs(&self, start: Self::NodeId) -> impl Iterator<Item = (Self::NodeId, usize)> {
+        iterators::BfsIter::new(self, start)
     }
 }
 

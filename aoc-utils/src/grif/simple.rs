@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
+use super::{Builder, Graph};
+use graphviz_rust::dot_structures as dots;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::hash::Hash;
-
-use graphviz_rust::dot_structures as dots;
-
-use super::{Builder, Graph};
+use std::marker::PhantomData;
 
 type FnEdgeWeight<NodeId, Weight> = fn(from: &NodeId, to: &NodeId) -> Weight;
 
@@ -15,70 +14,55 @@ enum EdgeWeight<NodeId, Weight> {
     Dynamic(FnEdgeWeight<NodeId, Weight>),
 }
 
-impl<NodeId, Weight> EdgeWeight<NodeId, Weight>
-where
-    NodeId: Copy,
-    Weight: Copy,
-{
-    fn weight(&self, from: &NodeId, to: &NodeId) -> Weight {
-        match self {
-            EdgeWeight::Static(w) => *w,
-            EdgeWeight::Dynamic(f) => f(from, to),
-        }
-    }
-}
-
-struct Node<NodeId, NodeValue, Weight> {
+struct Node<NodeId> {
     id: NodeId,
-    value: NodeValue,
-    edges: BTreeMap<NodeId, EdgeWeight<NodeId, Weight>>,
+    edges: BTreeSet<NodeId>,
 }
 
-pub struct SimpleGraph<NodeId, NodeValue, Weight>
+pub struct SimpleGraph<NodeId>
 where
     NodeId: Copy + Eq + Ord,
-    Weight: Copy + Eq + Hash,
 {
     name: String,
-    nodes: BTreeMap<NodeId, Node<NodeId, NodeValue, Weight>>,
+    nodes: BTreeMap<NodeId, Node<NodeId>>,
 }
 
-impl<NodeId, NodeValue, Weight> SimpleGraph<NodeId, NodeValue, Weight>
+impl<NodeId> SimpleGraph<NodeId>
 where
-    NodeId: Copy + Eq + Ord + Display,
-    Weight: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord + Display + Hash,
 {
     pub fn to_viz(&self, digraph: bool) -> dots::Graph {
         super::to_viz::<Self>(self, digraph)
     }
 }
 
-impl<NodeId, NodeValue, Weight> Display for SimpleGraph<NodeId, NodeValue, Weight>
+impl<NodeId> Display for SimpleGraph<NodeId>
 where
-    NodeId: Copy + Eq + Ord + Display,
-    NodeValue: Display,
-    Weight: Copy + Eq + Hash + Display,
+    NodeId: Copy + Eq + Ord + Display + Hash,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         super::fmt_graph(self, f)
     }
 }
 
-impl<NodeId, NodeValue, Weight> Graph for SimpleGraph<NodeId, NodeValue, Weight>
+impl<NodeId> Graph for SimpleGraph<NodeId>
 where
-    NodeId: Copy + Eq + Ord,
-    Weight: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord + Hash,
 {
     type NodeId = NodeId;
-    type NodeValue = NodeValue;
-    type Weight = Weight;
+    type NodeValue = PhantomData<u8>;
+    type Weight = u8;
 
     fn name(&self) -> String {
         self.name.clone()
     }
 
     fn node(&self, id: &Self::NodeId) -> Option<&Self::NodeValue> {
-        Some(&self.nodes.get(id)?.value)
+        if self.nodes.contains_key(id) {
+            Some(&PhantomData)
+        } else {
+            None
+        }
     }
 
     fn nodes(&self) -> impl Iterator<Item = Self::NodeId> {
@@ -86,28 +70,47 @@ where
     }
 
     fn node_edges(&self, node: Self::NodeId) -> impl Iterator<Item = (Self::NodeId, Self::Weight)> {
-        self.nodes.get(&node).into_iter().flat_map(|node| {
-            node.edges
-                .iter()
-                .map(|(&to, &edge_weight)| (to, edge_weight.weight(&node.id, &to)))
-        })
+        self.nodes
+            .get(&node)
+            .into_iter()
+            .flat_map(|node| node.edges.iter().map(|&to| (to, 1)))
     }
 }
 
-pub struct SimpleGraphBuilder<NodeId, NodeValue, Weight>
+pub struct SimpleGraphBuilder<NodeId>
 where
     NodeId: Copy + Eq + Ord,
-    Weight: Copy + Eq + Hash,
 {
-    graph: SimpleGraph<NodeId, NodeValue, Weight>,
+    graph: SimpleGraph<NodeId>,
 }
 
-impl<NodeId, NodeValue, Weight> SimpleGraphBuilder<NodeId, NodeValue, Weight>
+pub trait NodeIdFromStr<'a>: Sized {
+    fn node_id_from_str(s: &'a str) -> Option<Self>;
+}
+
+impl<'a> NodeIdFromStr<'a> for u64 {
+    fn node_id_from_str(s: &'a str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl<'a> NodeIdFromStr<'a> for i64 {
+    fn node_id_from_str(s: &'a str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl<'a> NodeIdFromStr<'a> for &'a str {
+    fn node_id_from_str(s: &'a str) -> Option<Self> {
+        Some(s)
+    }
+}
+
+impl<'a, NodeId> SimpleGraphBuilder<NodeId>
 where
-    NodeId: Copy + Eq + Ord + Display,
-    Weight: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord + Display + Hash + NodeIdFromStr<'a>,
 {
-    fn new(name: &str) -> SimpleGraphBuilder<NodeId, NodeValue, Weight> {
+    pub fn new(name: &str) -> SimpleGraphBuilder<NodeId> {
         SimpleGraphBuilder {
             graph: SimpleGraph {
                 name: name.to_string(),
@@ -115,62 +118,81 @@ where
             },
         }
     }
-}
 
-impl<'a> SimpleGraphBuilder<&'a str, char, u8> {
-    pub fn parse(
+    fn parse_nodes(
+        input: &'a str,
+        separator: &'a str,
+    ) -> impl Iterator<Item = (NodeId, NodeId)> + 'a {
+        input.lines().filter_map(move |line| {
+            let mut it = line.split(separator);
+            Some((
+                NodeId::node_id_from_str(it.next()?)?,
+                NodeId::node_id_from_str(it.next()?)?,
+            ))
+        })
+    }
+
+    pub fn parse(name: &str, input: &'a str, separator: &'a str) -> Option<SimpleGraph<NodeId>> {
+        let mut builder = SimpleGraphBuilder::new(name);
+        Self::parse_nodes(input, separator).for_each(|(a, b)| {
+            builder.add_edge(a, b, 1);
+        });
+        Some(builder.build())
+    }
+
+    pub fn parse_directed(
         name: &str,
         input: &'a str,
-        separator: &str,
-    ) -> Option<SimpleGraph<&'a str, char, u8>> {
+        separator: &'a str,
+    ) -> Option<SimpleGraph<NodeId>> {
         let mut builder = SimpleGraphBuilder::new(name);
-        input
-            .lines()
-            .filter_map(|line| {
-                let mut it = line.split(separator);
-                Some((it.next()?, it.next()?))
-            })
-            .for_each(|(a, b)| {
-                builder.add_edge(a, b, 1);
-            });
-
+        Self::parse_nodes(input, separator).for_each(|(a, b)| {
+            builder.add_directed_edge(a, b, 1);
+        });
         Some(builder.build())
     }
 }
 
-impl<NodeId, NodeValue, Weight> Builder for SimpleGraphBuilder<NodeId, NodeValue, Weight>
+impl<NodeId> Builder for SimpleGraphBuilder<NodeId>
 where
-    NodeId: Copy + Eq + Ord + Copy,
-    NodeValue: Default,
-    Weight: Copy + Eq + Hash,
+    NodeId: Copy + Eq + Ord + Hash,
 {
+    type Graph = SimpleGraph<NodeId>;
     type NodeId = NodeId;
-    type NodeValue = NodeValue;
-    type Weight = Weight;
-    type Graph = SimpleGraph<NodeId, NodeValue, Weight>;
+    type NodeValue = PhantomData<u8>;
+    type Weight = u8;
 
-    fn add_node(&mut self, id: NodeId) -> &mut Self {
+    fn add_node(&mut self, id: Self::NodeId) -> &mut Self {
         self.graph.nodes.entry(id).or_insert(Node {
             id,
-            value: NodeValue::default(),
-            edges: BTreeMap::new(),
+            edges: BTreeSet::new(),
         });
         self
     }
 
-    fn add_node_edge(&mut self, a: NodeId, b: NodeId, weight: Weight) -> &mut Self {
+    fn add_node_edge(
+        &mut self,
+        a: Self::NodeId,
+        b: Self::NodeId,
+        _weight: Self::Weight,
+    ) -> &mut Self {
         self.add_node(a);
         self.graph.nodes.entry(a).and_modify(|n| {
-            n.edges.insert(b, EdgeWeight::Static(weight));
+            n.edges.insert(b);
         });
         self
     }
 
-    fn add_directed_edge(&mut self, a: NodeId, b: NodeId, weight: Weight) -> &mut Self {
+    fn add_directed_edge(
+        &mut self,
+        a: Self::NodeId,
+        b: Self::NodeId,
+        _weight: Self::Weight,
+    ) -> &mut Self {
         self.add_node(a);
         self.add_node(b);
         self.graph.nodes.entry(a).and_modify(|n| {
-            n.edges.insert(b, EdgeWeight::Static(weight));
+            n.edges.insert(b);
         });
         self
     }
@@ -187,7 +209,7 @@ mod test {
 
     #[test]
     fn test_simple_graph_builder() {
-        let mut builder = SimpleGraphBuilder::<u8, u8, u8>::new("test");
+        let mut builder = SimpleGraphBuilder::<u64>::new("test");
         builder.add_edge(1, 2, 1);
         assert_eq!(builder.graph.nodes.len(), 2);
         assert_eq!(builder.graph.nodes.get(&1).unwrap().edges.len(), 1);
@@ -216,7 +238,7 @@ mod test {
 
     #[test]
     fn test_simple_graph() {
-        let mut builder = SimpleGraphBuilder::<u8, u8, u8>::new("test");
+        let mut builder = SimpleGraphBuilder::<u64>::new("test");
         builder.add_edge(1, 2, 10);
         builder.add_edge(1, 3, 11);
         builder.add_edge(2, 3, 12);

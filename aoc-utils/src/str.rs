@@ -5,6 +5,7 @@ pub trait AocStr {
     fn nth(&self, n: usize) -> char;
     fn parse_lines<V>(&self, f: impl FnMut(&str) -> V) -> Vec<V>;
     fn parse_nums<N: FromStr>(&self) -> Vec<N>;
+    fn parse_sep_nums<N: FromStr>(&self, sep: &str) -> Vec<N>;
 }
 
 impl AocStr for str {
@@ -22,6 +23,12 @@ impl AocStr for str {
 
     fn parse_nums<N: FromStr>(&self) -> Vec<N> {
         self.split_whitespace()
+            .filter_map(|s| s.parse::<N>().ok())
+            .collect()
+    }
+
+    fn parse_sep_nums<N: FromStr>(&self, sep: &str) -> Vec<N> {
+        self.split(sep)
             .filter_map(|s| s.parse::<N>().ok())
             .collect()
     }

@@ -2,39 +2,47 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::Graph;
 
-pub struct DfsIter<'a, G>
+pub struct DfsIter<'a, G, Pred>
 where
-    G: Graph,
+    G: Graph + ?Sized,
+    Pred: Fn(&G::NodeId) -> bool,
 {
     graph: &'a G,
     visited: BTreeSet<G::NodeId>,
     stack: Vec<G::NodeId>,
+    filter: Pred,
 }
 
-impl<'a, G> DfsIter<'a, G>
+impl<'a, G, Pred> DfsIter<'a, G, Pred>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
+    Pred: Fn(&G::NodeId) -> bool,
 {
-    pub fn new(graph: &'a G, start: G::NodeId) -> DfsIter<'a, G> {
+    pub fn new(graph: &'a G, start: G::NodeId, filter: Pred) -> DfsIter<'a, G, Pred>
+    where
+        Pred: Fn(&G::NodeId) -> bool,
+    {
         DfsIter {
             graph,
             visited: BTreeSet::from([start]),
             stack: vec![start],
+            filter,
         }
     }
 }
 
-impl<'a, G> Iterator for DfsIter<'a, G>
+impl<'a, G, Pred> Iterator for DfsIter<'a, G, Pred>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
+    Pred: Fn(&G::NodeId) -> bool,
 {
     type Item = G::NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(node) = self.stack.pop() {
-            for edge in self.graph.node_edges(node) {
+            for edge in self.graph.node_edges(node).filter(|e| (self.filter)(&e.0)) {
                 // Add all new nodes that haven't been marked for visitation
                 if !self.visited.contains(&edge.0) {
                     self.stack.push(edge.0);
@@ -50,7 +58,7 @@ where
 
 pub struct DfsPostIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
 {
     graph: &'a G,
     visited: BTreeSet<G::NodeId>,
@@ -59,7 +67,7 @@ where
 
 impl<'a, G> DfsPostIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     pub fn new(graph: &'a G, start: G::NodeId) -> DfsPostIter<'a, G> {
@@ -73,7 +81,7 @@ where
 
 impl<'a, G> Iterator for DfsPostIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     type Item = G::NodeId;
@@ -99,7 +107,7 @@ where
 
 pub struct BfsIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
 {
     graph: &'a G,
     visited: BTreeMap<G::NodeId, usize>,
@@ -108,7 +116,7 @@ where
 
 impl<'a, G> BfsIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     pub fn new(graph: &'a G, start: G::NodeId) -> BfsIter<'a, G> {
@@ -122,7 +130,7 @@ where
 
 impl<'a, G> Iterator for BfsIter<'a, G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     type Item = (G::NodeId, usize);
@@ -145,14 +153,14 @@ where
 
 pub struct BfsPostIter<G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
 {
     stack: Vec<G::NodeId>,
 }
 
 impl<G> BfsPostIter<G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     pub fn new(graph: &G, start: G::NodeId) -> BfsPostIter<G> {
@@ -177,7 +185,7 @@ where
 
 impl<G> Iterator for BfsPostIter<G>
 where
-    G: Graph,
+    G: Graph + ?Sized,
     G::NodeId: Copy + Eq + Ord,
 {
     type Item = G::NodeId;
@@ -195,11 +203,14 @@ mod tests {
 
     #[test]
     fn test_dfs_iterator() {
-        let g =
-            sh::SimpleGraphBuilder::parse("iter", "a-b\na-c\nb-d\nc-e\nd-f\ne-g\nf-h\ng-h", "-")
-                .unwrap();
+        let g = sh::SimpleGraphBuilder::<&str>::parse(
+            "iter",
+            "a-b\na-c\nb-d\nc-e\nd-f\ne-g\nf-h\ng-h",
+            "-",
+        )
+        .unwrap();
 
-        let dfs_iter = DfsIter::new(&g, "a");
+        let dfs_iter = DfsIter::new(&g, "a", |_| true);
         assert_eq!(
             dfs_iter.collect::<Vec<_>>(),
             vec!["a", "c", "e", "g", "h", "f", "d", "b"]
