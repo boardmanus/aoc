@@ -1,4 +1,33 @@
-use std::u64;
+use aoc_utils::str::AocStr;
+
+trait SpecialU64Ops {
+    fn checked_concat(self, rhs: u64) -> Option<u64>;
+    fn checked_uncat(self, rhs: u64) -> Option<u64>;
+    fn checked_perfect_div(self, rhs: u64) -> Option<u64>;
+}
+
+impl SpecialU64Ops for u64 {
+    fn checked_concat(self, rhs: u64) -> Option<u64> {
+        Some(self * 10u64.pow(rhs.checked_ilog10()? + 1) + rhs)
+    }
+
+    fn checked_uncat(self, rhs: u64) -> Option<u64> {
+        let p = 10u64.pow(rhs.checked_ilog10()? + 1);
+        if self % p == rhs {
+            Some(self / p)
+        } else {
+            None
+        }
+    }
+
+    fn checked_perfect_div(self, rhs: u64) -> Option<u64> {
+        if self % rhs == 0 {
+            self.checked_div(rhs)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
 enum Op {
@@ -11,50 +40,14 @@ enum Op {
 }
 
 impl Op {
-    fn concat(lhs: u64, rhs: u64) -> u64 {
-        let c_str = [lhs.to_string(), rhs.to_string()].join("");
-        c_str.parse::<u64>().unwrap_or(u64::MAX)
-    }
-    fn concat2(lhs: u64, rhs: u64) -> u64 {
-        //lhs * 10u64.pow((rhs as f64 + 0.5).log10().ceil() as u32) + rhs
-        lhs * 10u64.pow(rhs.checked_ilog10().unwrap_or(0) + 1) + rhs
-    }
-
-    fn uncat(lhs: u64, rhs: u64) -> u64 {
-        let lhs_str = lhs.to_string();
-        let uncat_str = lhs_str.strip_suffix(&rhs.to_string());
-        if let Some(uncat_str) = uncat_str {
-            if uncat_str.is_empty() {
-                0
-            } else {
-                uncat_str.parse::<u64>().unwrap()
-            }
-        } else {
-            lhs
-        }
-    }
-
-    fn uncat2(lhs: u64, rhs: u64) -> u64 {
-        lhs / (rhs.checked_ilog10().unwrap_or(0) as u64 + 1)
-    }
-
-    fn apply(&self, lhs: u64, rhs: u64) -> u64 {
+    fn apply(&self, lhs: u64, rhs: u64) -> Option<u64> {
         match self {
-            Op::Add => lhs + rhs,
-            Op::Multiply => lhs * rhs,
-            Op::Concat => Op::concat(lhs, rhs),
-            Op::Subtract => lhs - rhs,
-            Op::Divide => lhs / rhs,
-            Op::Uncat => Op::uncat(lhs, rhs),
-        }
-    }
-
-    fn possible(&self, lhs: u64, rhs: u64) -> bool {
-        match self {
-            Op::Add | Op::Multiply | Op::Concat => true,
-            Op::Subtract => lhs >= rhs,
-            Op::Divide => lhs % rhs == 0,
-            Op::Uncat => lhs.to_string().ends_with(&rhs.to_string()),
+            Op::Add => lhs.checked_add(rhs),
+            Op::Multiply => lhs.checked_mul(rhs),
+            Op::Concat => lhs.checked_concat(rhs),
+            Op::Subtract => lhs.checked_sub(rhs),
+            Op::Divide => lhs.checked_perfect_div(rhs),
+            Op::Uncat => lhs.checked_uncat(rhs),
         }
     }
 
@@ -77,71 +70,51 @@ struct Equation {
 }
 
 impl Equation {
-    fn parse(e_str: &str) -> Equation {
-        let mut s = e_str.split(":");
+    fn parse(line: &str) -> Equation {
+        let mut s = line.split(":");
         let test = s.next().unwrap().parse::<u64>().unwrap();
-        let value_str = s.next().unwrap();
-        let values = value_str
-            .split_whitespace()
-            .map(|v_str| v_str.parse::<u64>().unwrap())
-            .collect::<Vec<_>>();
+        let values = s.next().unwrap().parse_nums::<u64>();
         Equation { test, values }
     }
 
     fn parse_all(input: &str) -> Vec<Equation> {
-        input.lines().map(|e_str| Equation::parse(e_str)).collect()
+        input.parse_lines(Equation::parse)
     }
 
-    fn tests_out(&self, ops: &[Op]) -> bool {
-        let mut possibles: Vec<(u64, &[u64])> = vec![(self.values[0], &self.values[1..])];
-        while let Some(p) = possibles.pop() {
-            if p.1.len() == 0 {
-                let result = p.0 == self.test;
-                if result {
-                    return true;
-                }
-            } else {
-                ops.iter().for_each(|op| {
-                    let rhs = *p.1.first().unwrap();
-                    let res = op.apply(p.0, rhs);
-                    if res <= self.test {
-                        possibles.push((res, &p.1[1..]));
-                    }
-                })
-            };
+    fn evaluate_r(ops: &[Op], x: u64, values: &[u64]) -> bool {
+        match values.len() {
+            0 => false,
+            1 => x == values[0],
+            _ => ops.iter().any(|op| match op.apply(x, values[0]) {
+                None => false,
+                Some(res) => Equation::evaluate_r(ops, res, &values[1..]),
+            }),
         }
-        false
     }
 
-    fn rtests_out(&self, ops: &[Op]) -> bool {
-        let rops: Vec<Op> = ops.iter().map(|op| op.reverse()).collect();
-        let rvalues: Vec<u64> = self.values.iter().rev().map(|x| *x).collect();
-        let mut possibles: Vec<(u64, &[u64])> = vec![(self.test, &rvalues[0..])];
+    // Evaluate is slower than reverse evaluate, as more operations are valid compared to the
+    // inverse operations used by revaluate.
+    // eg; for a checked_perfect_div, the two numbers must be divisble, whereas, for a checked_mul,
+    // any operation is valid.
+    fn revaluate(&self, ops: &[Op]) -> bool {
+        let rops = ops.iter().map(|op| op.reverse()).collect::<Vec<_>>();
+        let values = self.values.iter().rev().copied().collect::<Vec<_>>();
+        Equation::evaluate_r(&rops, self.test, &values)
+    }
 
-        while let Some(p) = possibles.pop() {
-            if p.1.len() == 0 {
-                let result = p.0 == 0;
-                if result {
-                    return true;
-                }
-            } else {
-                rops.iter().for_each(|op| {
-                    let rhs = *p.1.first().unwrap();
-                    if op.possible(p.0, rhs) {
-                        let res = op.apply(p.0, rhs);
-                        possibles.push((res, &p.1[1..]));
-                    }
-                })
-            };
-        }
-        false
+    #[allow(unused)]
+    fn evaluate(&self, ops: &[Op]) -> bool {
+        let mut values = self.values.clone();
+        values.push(self.test);
+        Equation::evaluate_r(ops, values[0], &values[1..])
     }
 }
+
 pub fn part1(input: &str) -> u64 {
     let equations = Equation::parse_all(input);
     equations
         .iter()
-        .filter(|&equation| equation.rtests_out(&[Op::Add, Op::Multiply]))
+        .filter(|&equation| equation.revaluate(&[Op::Add, Op::Multiply]))
         .map(|equation| equation.test)
         .sum()
 }
@@ -150,7 +123,7 @@ pub fn part2(input: &str) -> u64 {
     let equations = Equation::parse_all(input);
     equations
         .iter()
-        .filter(|&equation| equation.rtests_out(&[Op::Add, Op::Multiply, Op::Concat]))
+        .filter(|&equation| equation.revaluate(&[Op::Add, Op::Multiply, Op::Concat]))
         .map(|equation| equation.test)
         .sum()
 }
@@ -179,20 +152,16 @@ mod tests {
 
     #[test]
     fn test_concat() {
-        assert_eq!(Op::Concat.apply(1, 2), 12);
-        assert_eq!(Op::Concat.apply(435, 123), 435123);
-        assert_eq!(Op::concat(1, 2), Op::concat2(1, 2));
-        assert_eq!(Op::concat(435, 123), Op::concat2(435, 123));
-        assert_eq!(Op::concat(111111, 33333), Op::concat2(111111, 33333));
-        assert_eq!(Op::concat(9, 9), Op::concat2(9, 9));
-        assert_eq!(Op::concat(10, 10), Op::concat2(10, 10));
+        assert_eq!(Op::Concat.apply(1, 2), Some(12));
+        assert_eq!(Op::Concat.apply(435, 123), Some(435123));
     }
 
     #[test]
     fn test_uncat() {
-        assert_eq!(Op::uncat(21, 1), 2);
-        assert_eq!(Op::uncat(1234567, 234), 1234567);
-        assert_eq!(Op::uncat(111, 1), 11);
+        assert_eq!(21.checked_uncat(1), Some(2));
+        assert_eq!(1234567.checked_uncat(234), None);
+        assert_eq!(111.checked_uncat(1), Some(11));
+        assert_eq!(111222333.checked_uncat(2333), Some(11122));
     }
 
     #[test]
