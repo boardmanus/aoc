@@ -1,29 +1,31 @@
 use std::collections::{HashMap, HashSet};
 
-use aoc_utils::grid::{Grid, Index};
+use aoc_utils::{
+    dir::Dir8,
+    grud::{Grid, GridPos, GridVec},
+    uterators::PairsIterator,
+};
 
-type AntennaGrid = Grid<char>;
-type AntennaMap = HashMap<char, Vec<Index>>;
+type AntennaGrid = Grid<char, Dir8>;
+type AntennaMap = HashMap<char, Vec<GridPos>>;
 
-fn is_valid_antinode_pos(grid: &AntennaGrid, index: &Index) -> bool {
-    grid.is_valid(*index)
+fn is_valid_antinode_pos(grid: &AntennaGrid, pos: &GridPos) -> bool {
+    grid.is_valid(pos)
 }
 
 fn antenna_map(grid: &AntennaGrid) -> AntennaMap {
-    grid.iter().enumerate().filter(|(_i, &c)| c != '.').fold(
-        AntennaMap::new(),
-        |mut acc, (i, &c)| {
-            let index = grid.index_from(i);
-            acc.entry(c).or_default().push(index);
+    grid.iter_pair()
+        .filter(|(_, c)| *c != '.')
+        .fold(AntennaMap::new(), |mut acc, (pos, c)| {
+            acc.entry(c).or_default().push(pos);
             acc
-        },
-    )
+        })
 }
 
-fn antinode_harmonics(grid: &AntennaGrid, antenna: &Index, offset: Index) -> Vec<Index> {
-    let mut v = Vec::<Index>::new();
-    let mut antinode: Index = *antenna;
-    while is_valid_antinode_pos(grid, &antinode) {
+fn antinode_harmonics(grid: &AntennaGrid, antenna: &GridPos, offset: GridVec) -> Vec<GridPos> {
+    let mut v = Vec::<GridPos>::new();
+    let mut antinode: GridPos = *antenna;
+    while grid.is_valid(&antinode) {
         v.push(antinode);
         antinode = antinode + offset;
     }
@@ -32,18 +34,14 @@ fn antinode_harmonics(grid: &AntennaGrid, antenna: &Index, offset: Index) -> Vec
 
 fn antinodes_for_antennas(
     grid: &AntennaGrid,
-    antenna_a: &Index,
-    antenna_b: &Index,
+    antenna_a: &GridPos,
+    antenna_b: &GridPos,
     with_harmonics: bool,
-) -> Vec<Index> {
+) -> Vec<GridPos> {
     let offset = *antenna_b - *antenna_a;
     if with_harmonics {
-        let mut v = antinode_harmonics(grid, antenna_a, *antenna_a - *antenna_b);
-        v.append(&mut antinode_harmonics(
-            grid,
-            antenna_b,
-            *antenna_b - *antenna_a,
-        ));
+        let mut v = antinode_harmonics(grid, antenna_a, offset);
+        v.append(&mut antinode_harmonics(grid, antenna_b, -offset));
         v
     } else {
         [*antenna_a - offset, *antenna_b + offset]
@@ -56,56 +54,44 @@ fn antinodes_for_antennas(
 
 fn antinode_locations(
     grid: &AntennaGrid,
-    antenna_locations: &Vec<Index>,
+    antenna_locations: &Vec<GridPos>,
     with_harmonics: bool,
-) -> HashSet<Index> {
-    let a = (0..antenna_locations.len() - 1).fold(HashSet::<Index>::new(), |mut acc, i| {
-        let loc = antenna_locations[i];
-        let others = &antenna_locations[i + 1..];
-        others
-            .iter()
-            .map(|other_loc| antinodes_for_antennas(grid, &loc, other_loc, with_harmonics))
-            .flatten()
-            .for_each(|antinode| {
-                acc.insert(antinode);
-            });
-        acc
-    });
-    a
+) -> HashSet<GridPos> {
+    antenna_locations
+        .iter()
+        .pairs()
+        .map(|(a, b)| antinodes_for_antennas(grid, a, b, with_harmonics))
+        .flatten()
+        .fold(HashSet::default(), |mut acc, a| {
+            acc.insert(a);
+            acc
+        })
 }
 
 pub fn part1(input: &str) -> usize {
-    let mut grid = AntennaGrid::parse(input);
+    let grid = AntennaGrid::parse(input);
     let antennas = antenna_map(&grid);
-    let antinodes = antennas
+    antennas
         .iter()
-        .fold(HashSet::<Index>::default(), |acc, (_c, locations)| {
+        .fold(HashSet::<GridPos>::default(), |acc, (_c, locations)| {
             acc.union(&antinode_locations(&grid, locations, false))
                 .map(|i| *i)
                 .collect()
-        });
-
-    antinodes.iter().for_each(|an| grid.set(*an, '#'));
-    println!("{grid}");
-
-    antinodes.len()
+        })
+        .len()
 }
 
 pub fn part2(input: &str) -> usize {
     let mut grid = AntennaGrid::parse(input);
     let antennas = antenna_map(&grid);
-    let antinodes = antennas
+    antennas
         .iter()
-        .fold(HashSet::<Index>::default(), |acc, (_c, locations)| {
+        .fold(HashSet::<GridPos>::default(), |acc, (_c, locations)| {
             acc.union(&antinode_locations(&grid, locations, true))
                 .map(|i| *i)
                 .collect()
-        });
-
-    antinodes.iter().for_each(|an| grid.set(*an, '#'));
-    println!("{grid}");
-
-    antinodes.len()
+        })
+        .len()
 }
 
 #[cfg(test)]
