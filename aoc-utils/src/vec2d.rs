@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num};
@@ -38,6 +38,14 @@ impl<Scalar: Num + Copy> Mul<Scalar> for Vec2d<Scalar> {
 
     fn mul(self, rhs: Scalar) -> Self::Output {
         Vec2d::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl<Scalar: Num + Neg<Output = Scalar> + Copy> Neg for Vec2d<Scalar> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Vec2d::new(-self.x, -self.y)
     }
 }
 

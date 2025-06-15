@@ -251,6 +251,10 @@ where
         (0..self.g.len()).map(|i| self.pos_from(i))
     }
 
+    pub fn iter_pair(&self) -> impl Iterator<Item = (GridPos, Item)> + '_ {
+        (0..self.g.len()).map(|i| (self.pos_from(i), self.g[i]))
+    }
+
     pub fn row_iter(&self) -> GridRowIter<'_, Item, D> {
         GridRowIter::<Item, D>::new(self)
     }

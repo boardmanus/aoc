@@ -96,6 +96,14 @@ impl<Scalar: Num + Copy + From<i64>> Sub<Dir8> for Pos2d<Scalar> {
     }
 }
 
+impl<Scalar: Num + Copy + From<i64>> Sub<Pos2d<Scalar>> for Pos2d<Scalar> {
+    type Output = Vec2d<Scalar>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec2d::new(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
 impl<Scalar: Float + FromPrimitive> AbsDiffEq for Pos2d<Scalar> {
     type Epsilon = Scalar;
 
