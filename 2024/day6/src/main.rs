@@ -4,7 +4,9 @@ use std::{env, fs};
 
 fn check_solution(solution: &str, answer: Option<&String>) {
     if let Some(answer) = answer {
-        if answer != solution {
+        if answer == solution {
+            println!("Answer matches expected solution.");
+        } else {
             println!("WRONG! Expected {answer}");
         }
     }
@@ -37,6 +39,7 @@ fn main() {
             .lines()
             .filter_map(|line| extract_solution(line))
             .for_each(|answer| answers.push(answer.to_string()));
+        println!("Found answers: {:?}", answers);
     }
 
     const INPUT: &str = include_str!("data/input");
@@ -44,7 +47,7 @@ fn main() {
     if parts.0 {
         let solution1 = part1(INPUT).to_string();
         println!("Part1 Solution:\n{}", solution1);
-        check_solution(&solution1, answers.get(0));
+        check_solution(&solution1, answers.first());
     }
 
     if parts.1 {

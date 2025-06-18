@@ -1,48 +1,51 @@
 use std::collections::HashSet;
 
 use aoc_utils::dir::{Dir, Dir4};
-use aoc_utils::grid::{Grid, Index};
+use aoc_utils::grud;
+use aoc_utils::pos2d;
 
-fn parse_input(input: &str) -> (Grid<char>, Index) {
-    let grid = Grid::<char>::parse(input);
+type Grid = grud::Grid<char, Dir4>;
+type Pos2d = pos2d::Pos2d<i64>;
+
+fn parse_input(input: &str) -> (Grid, Pos2d) {
+    let grid = Grid::parse(input);
     let start = grid.find('^').unwrap();
     (grid, start)
 }
 
-fn next_move(grid: &Grid<char>, start: Index, dir: Dir4) -> Option<(Index, Dir4)> {
-    match grid.at(start + dir)? {
-        '^' | '.' => Some((start + dir, dir)),
-        '#' => next_move(grid, start, dir.rotate_cw()),
+fn next_move(grid: &Grid, start: Pos2d, dir: Dir4) -> Option<(Pos2d, Dir4)> {
+    let new_pos = start + dir;
+    match grid.at(&new_pos)? {
+        '^' | '.' => Some((new_pos, dir)),
+        '#' => Some((start, dir.rotate_cw())),
         _ => None,
     }
 }
 
-fn march(grid: &Grid<char>, start: Index) -> HashSet<Index> {
-    let mut visited = HashSet::<Index>::from([start]);
+fn march(grid: &Grid, start: Pos2d) -> HashSet<Pos2d> {
+    let mut visited = HashSet::from([start]);
     let mut dir = Dir4::N;
     let mut pos = start;
 
     while let Some(item) = next_move(grid, pos, dir) {
-        pos = item.0;
-        dir = item.1;
+        (pos, dir) = item;
         visited.insert(pos);
     }
     visited
 }
 
-fn is_endless(grid: &Grid<char>, start: Index, barrier: Index) -> bool {
+fn is_endless(grid: &Grid, start: Pos2d, barrier: Pos2d) -> bool {
+    let mut updated_grid = grid.clone();
+    updated_grid.set(&barrier, '#');
     let mut dir: Dir4 = Dir4::N;
     let mut visited = HashSet::<_>::from([(start, dir)]);
     let mut pos = start;
-    let mut grid2 = grid.clone();
-    grid2.set(barrier, '#');
 
-    while let Some(item) = next_move(&grid2, pos, dir) {
-        pos = item.0;
-        dir = item.1;
-        if !visited.insert((pos, dir)) {
+    while let Some(item) = next_move(&updated_grid, pos, dir) {
+        if !visited.insert(item) {
             return true;
         }
+        (pos, dir) = item;
     }
 
     false
@@ -50,18 +53,19 @@ fn is_endless(grid: &Grid<char>, start: Index, barrier: Index) -> bool {
 
 pub fn part1(input: &str) -> usize {
     let (grid, start) = parse_input(input);
-    let locations = march(&grid, start);
-    locations.len()
+    march(&grid, start).len()
 }
 
 pub fn part2(input: &str) -> usize {
     let (grid, start) = parse_input(input);
     let visited = march(&grid, start);
 
-    visited
+    let v = visited
         .iter()
-        .filter(|&index| is_endless(&grid, start, *index))
-        .count()
+        .filter(|&&pos| is_endless(&grid, start, pos))
+        .collect::<Vec<_>>();
+
+    v.len()
 }
 
 #[cfg(test)]
@@ -73,6 +77,24 @@ mod tests {
     pub const TEST_ANSWER: usize = 41;
     pub const TEST_INPUT_2: &str = TEST_INPUT;
     pub const TEST_ANSWER_2: usize = 6;
+
+    #[test]
+    fn test_permutations() {
+        let obstacles = vec![
+            Pos2d::new(0, 0),
+            Pos2d::new(1, 1),
+            Pos2d::new(2, 2),
+            Pos2d::new(3, 3),
+            Pos2d::new(4, 4),
+            Pos2d::new(5, 5),
+            Pos2d::new(6, 6),
+            Pos2d::new(7, 7),
+            Pos2d::new(8, 8),
+            Pos2d::new(9, 9),
+        ];
+        let perms = permutations(&obstacles);
+        assert_eq!(perms.len(), n_choose_k(obstacles.len(), 3)); // 10 choose 3
+    }
 
     #[test]
     fn test_part1() {
