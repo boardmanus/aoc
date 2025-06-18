@@ -1,8 +1,14 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct File(u16);
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct MemoryBlock {
+    file: Option<File>,
+    loc: usize,
+    len: usize,
+}
+
 type Memory = Vec<Option<File>>;
-type MemoryBlocks = Vec<(Option<File>, usize, usize)>;
 
 fn checksum(mem: &Memory) -> usize {
     mem.iter()
@@ -14,13 +20,13 @@ fn checksum(mem: &Memory) -> usize {
 
 fn defrag(mem: &Memory) -> Memory {
     let mut new_mem = mem.clone();
-    let mut free_space = mem.iter().enumerate().filter(|mem_loc| mem_loc.1.is_none());
+    let free_space = mem.iter().enumerate().filter(|mem_loc| mem_loc.1.is_none());
     let mut data = mem
         .iter()
         .enumerate()
         .rev()
         .filter(|mem_loc| mem_loc.1.is_some());
-    while let Some((free_i, _)) = free_space.next() {
+    for (free_i, _) in free_space {
         if let Some((data_i, &data_id)) = data.next() {
             if free_i < data_i {
                 new_mem[free_i] = data_id;
@@ -35,75 +41,66 @@ fn defrag(mem: &Memory) -> Memory {
     new_mem
 }
 
-fn defrag2(mem_blocks: &MemoryBlocks, mem: &Memory) -> Memory {
+fn defrag2(mem_blocks: &[MemoryBlock], mem: &Memory) -> Memory {
     let mut new_mem = mem.clone();
     let mut free_space = mem_blocks
         .iter()
-        .filter(|a| a.0.is_none())
-        .map(|&a| a)
+        .filter(|a| a.file.is_none())
+        .copied()
         .collect::<Vec<_>>();
 
-    mem_blocks.iter().rev().filter(|a| a.0.is_some()).for_each(
-        |&(data_file, data_idx, data_len)| {
+    mem_blocks
+        .iter()
+        .rev()
+        .filter(|a| a.file.is_some())
+        .for_each(|blk| {
             let gap = free_space
                 .iter()
                 .enumerate()
-                .find(|(_i, (_, _, free_len))| *free_len >= data_len);
+                .find(|(_i, free_blk)| free_blk.len >= blk.len);
 
             if let Some((i, free)) = gap {
-                if free.1 < data_idx {
+                if free.loc < blk.loc {
                     let free = free_space.get_mut(i).unwrap();
-                    (0..data_len).for_each(|i| {
-                        new_mem[free.1 + i] = data_file;
-                        new_mem[data_idx + i] = None
+                    (0..blk.len).for_each(|i| {
+                        new_mem[free.loc + i] = blk.file;
+                        new_mem[blk.loc + i] = None
                     });
-                    free.1 += data_len;
-                    free.2 -= data_len;
+                    free.loc += blk.len;
+                    free.len -= blk.len;
                 }
             }
-        },
-    );
+        });
 
     new_mem
 }
 
-fn parse_input_as_nums(input: &str) -> Vec<u32> {
-    input
-        .trim_end()
-        .chars()
-        .map(|c| c.to_digit(10).unwrap())
-        .collect()
+fn parse_input_as_nums<'a>(input: &'a str) -> impl Iterator<Item = u32> + 'a {
+    input.trim_end().chars().filter_map(|c| c.to_digit(10))
 }
 
-fn parse_input_as_memory_blocks(input: &str) -> MemoryBlocks {
-    let nums: Vec<u32> = parse_input_as_nums(input);
+fn parse_input_as_memory_blocks<'a>(input: &'a str) -> impl Iterator<Item = MemoryBlock> + 'a {
     let mut id = 0;
-    let mut idx = 0;
-    nums.iter()
-        .enumerate()
-        .map(|(i, &len)| {
-            let f = if i % 2 == 0 {
-                assert!(len > 0);
-                (Some(File(id)), idx, len as usize)
-            } else {
-                (None, idx, len as usize)
-            };
-            if i % 2 == 0 {
-                id += 1;
-            }
-            idx += len as usize;
-            f
-        })
-        .collect()
+    let mut loc = 0;
+    parse_input_as_nums(input).enumerate().map(move |(i, len)| {
+        let file = if i % 2 == 0 { Some(File(id)) } else { None };
+        let len = len as usize;
+        let blk = MemoryBlock { file, loc, len };
+        id += if i % 2 == 0 { 1 } else { 0 };
+        loc += len;
+        blk
+    })
 }
 
-fn parse_input(input: &str) -> (MemoryBlocks, Memory) {
-    let mem_blocks = parse_input_as_memory_blocks(input);
-    let mem_size: usize = mem_blocks.iter().map(|mb| mb.2).sum();
+fn parse_input(input: &str) -> (Vec<MemoryBlock>, Memory) {
+    let mem_blocks: Vec<_> = parse_input_as_memory_blocks(input).collect();
+    let mem_size: usize = mem_blocks.iter().map(|mb| mb.len).sum();
     let mut mem = vec![None; mem_size];
-    mem_blocks.iter().for_each(|&(file, loc, len)| {
-        (0..len).for_each(|j| mem[loc + j] = file);
-    });
+    mem_blocks
+        .iter()
+        .for_each(|&MemoryBlock { file, loc, len }| {
+            (0..len).for_each(|j| mem[loc + j] = file);
+        });
     (mem_blocks, mem)
 }
 
@@ -145,7 +142,23 @@ mod tests {
         );
         assert_eq!(
             mem_blocks,
-            vec![(Some(File(0)), 0, 1), (None, 1, 2), (Some(File(1)), 3, 3)]
+            vec![
+                MemoryBlock {
+                    file: Some(File(0)),
+                    loc: 0,
+                    len: 1
+                },
+                MemoryBlock {
+                    file: None,
+                    loc: 1,
+                    len: 2
+                },
+                MemoryBlock {
+                    file: Some(File(1)),
+                    loc: 3,
+                    len: 3
+                }
+            ]
         );
     }
 
