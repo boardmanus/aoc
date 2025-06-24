@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use aoc_utils::{
     dir::Dir4,
-    grof::algorithms::dfs,
+    grif::Graph,
     grud::{Grid, GridPos},
 };
 
@@ -16,14 +16,10 @@ fn traversable(g: &Grid<u32, Dir4>, from: &GridPos, to: &GridPos) -> bool {
 }
 
 fn trail_score(g: &TrailMap, location: GridPos) -> usize {
-    let mut score = 0;
-    dfs(g, location, |location| {
-        // The score increases if a trail position of 9 is reached.
-        if g.at(location) == Some(9) {
-            score += 1;
-        }
-    });
-    score
+    // Perform a depth-first search, and count all nodes reached with a height of 9
+    g.dfs(location, |_| true)
+        .map(|n| if g.at(&n) == Some(9) { 1 } else { 0 })
+        .sum()
 }
 
 fn trail_map_score(g: &TrailMap) -> usize {
