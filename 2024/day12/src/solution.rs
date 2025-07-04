@@ -4,7 +4,7 @@ use std::{collections::HashSet, rc::Rc};
 
 use aoc_utils::{
     dir::Dir4,
-    grof,
+    grif::Graph,
     grud::{Grid, GridPos},
 };
 
@@ -17,8 +17,7 @@ struct Plot {
 
 impl Plot {
     fn new(grid: Rc<Grid<char, Dir4>>, index: GridPos) -> Plot {
-        let mut locations: Vec<GridPos> = Vec::new();
-        grof::algorithms::dfs(grid.as_ref(), index, |n| locations.push(*n));
+        let mut locations = grid.dfs(index, |_| true).collect::<Vec<_>>();
         locations.sort();
         Plot { grid, locations }
     }
