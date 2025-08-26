@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 aoc-utils = { path = "../../aoc-utils" }
 lazy-regex = "3.3.0"
+num = "0.4.3"

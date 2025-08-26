@@ -76,7 +76,7 @@ fn parse_input(input: &str, double: bool) -> (WarehouseGrid, Directions) {
             };
             acc
         });
-        grid = Grid::create(grid.width() * 2, grid.height(), g).unwrap();
+        grid = WarehouseGrid::create(grid.width() * 2, grid.height(), g).unwrap();
     }
 
     let directions = it

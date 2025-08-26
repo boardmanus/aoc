@@ -1,14 +1,16 @@
-use aoc_utils::graph::{Graph, Node};
+use aoc_utils::grif::{
+    algorithms::find_cycles, algorithms::find_maximum_clique, simple::SimpleGraphBuilder,
+};
 
 pub fn part1(input: &str) -> usize {
-    let graph: Graph<&str, u8> = Graph::parse(input, "-").unwrap();
-    let cycles = graph.find_cycles(3, |node: &&Node<&str, u8>| node.id.starts_with("t"));
+    let graph = SimpleGraphBuilder::parse("day23", input, "-").unwrap();
+    let cycles = find_cycles(&graph, 3, |&node| node.starts_with("t"));
     cycles.len()
 }
 
 pub fn part2(input: &str) -> String {
-    let graph: Graph<&str, u8> = Graph::parse(input, "-").unwrap();
-    let mut max_clique = graph.find_maximum_clique(|node| true);
+    let graph = SimpleGraphBuilder::parse("day23", input, "-").unwrap();
+    let mut max_clique = find_maximum_clique(&graph).unwrap();
     max_clique.sort();
     max_clique.join(",")
 }
@@ -16,7 +18,10 @@ pub fn part2(input: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    use std::fs;
+
     use super::*;
+    use graphviz_rust::{cmd::Format, exec, printer::PrinterContext};
 
     pub const TEST_INPUT: &str = include_str!("data/input_example");
     pub const TEST_ANSWER: usize = 7;
@@ -25,8 +30,8 @@ mod tests {
 
     #[test]
     fn test_any_3_cycle() {
-        let graph: Graph<&str, u8> = Graph::parse(TEST_INPUT, "-").unwrap();
-        let cycles = graph.find_cycles(3, |_: &&Node<&str, u8>| true);
+        let graph = SimpleGraphBuilder::parse("test-day23", TEST_INPUT, "-").unwrap();
+        let cycles = find_cycles(&graph, 3, |_| true);
         println!("cycles: {:?}", cycles);
         assert_eq!(cycles.len(), 12);
     }
@@ -39,5 +44,21 @@ mod tests {
     #[test]
     fn test_part2() {
         assert_eq!(part2(TEST_INPUT_2), TEST_ANSWER_2);
+    }
+
+    #[test]
+    fn test_print_graph() {
+        let graph = SimpleGraphBuilder::parse("test-day23", TEST_INPUT, "-").unwrap();
+
+        let viz = graph.to_viz(false);
+        println!("{:?}", viz);
+
+        let graph_svg = exec(
+            viz,
+            &mut PrinterContext::default(),
+            vec![Format::Svg.into()],
+        )
+        .unwrap();
+        fs::write("graph.svg", graph_svg).expect("Unable to write file");
     }
 }

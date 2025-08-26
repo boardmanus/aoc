@@ -3,7 +3,49 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use aoc_utils::{
     dir::{Dir, Dir4},
     grid::{Grid, Index},
+    grif, grud,
 };
+
+#[derive(Debug, Clone)]
+struct GrudMaze {
+    grid: grud::Grid<char>,
+    start: grud::GridPos,
+    end: grud::GridPos,
+}
+
+impl GrudMaze {
+    fn parse(input: &str) -> Option<GrudMaze> {
+        let grid = grud::Grid::<char>::parse(input);
+        let start = grid.find('S')?;
+        let end = grid.find('E')?;
+        Some(GrudMaze { grid, start, end })
+    }
+
+    fn walkable(&self, _from: &grud::GridPos, to: &grud::GridPos) -> bool {
+        self.grid.at(to) != Some('#')
+    }
+
+    fn shortest_path(&self) -> HashMap<Index, usize> {
+        let sp = grif::shortest_path(&self.node_at(&self.start), &self.node_at(&self.end));
+        let mut visited: HashMap<Index, usize> = HashMap::new();
+        let mut possies = VecDeque::<(grud::GridPos, usize)>::from([(self.start, 0)]);
+        while let Some((pos, len)) = possies.pop_front() {
+            if pos == self.end {
+                visited.insert(pos, len);
+                break;
+            } else {
+                Dir4::cw()
+                    .map(|dir| pos + dir)
+                    .filter(|pos_next| {
+                        !self.grid.matches(*pos_next, '#') && !visited.contains_key(pos_next)
+                    })
+                    .for_each(|pos| possies.push_back((pos, len + 1)));
+                visited.insert(pos, len);
+            }
+        }
+        visited
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Maze {

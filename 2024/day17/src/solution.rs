@@ -185,34 +185,6 @@ pub fn part1(input: &str) -> String {
         .join(",")
 }
 
-pub fn part2_fail(input: &str) -> u64 {
-    let mut computer = Computer::parse(input);
-    let num_digits = computer.memory.len();
-    let min_a = 8u64.pow(num_digits as u32 - 1);
-    let mut a = min_a;
-    let mut offset = min_a;
-    let mut last_digit = 0;
-    for j in (0..num_digits).rev() {
-        let match_digit = computer.memory[j];
-        for i in 0..200 {
-            computer.registers = Registers::new(0, a, 0, 0);
-            let (output, num_instr) = computer.run();
-            last_digit = output[j];
-            if last_digit == match_digit {
-                println!(
-                    "{a}: {num_instr} => {:?} ... matched@{j}x{i}={match_digit}",
-                    output
-                );
-                offset /= 8;
-                break;
-            }
-            println!("{a}: {num_instr} => {:?}", output);
-            a += offset;
-        }
-    }
-    a
-}
-
 pub fn part2(input: &str) -> u64 {
     let mut computer = Computer::parse(input);
     let num_digits = computer.memory.len();
