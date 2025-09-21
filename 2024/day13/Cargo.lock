@@ -82,7 +82,6 @@ version = "0.1.0"
 dependencies = [
  "aoc-utils",
  "lazy-regex",
- "vec2d",
 ]
 
 [[package]]
@@ -505,12 +504,6 @@ name = "unicode-ident"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
-
-[[package]]
-name = "vec2d"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05a6c08b43438f5ef373e5138c3f6ed5a823f0c961e77de8a664342c7a8e9e31"
 
 [[package]]
 name = "version_check"

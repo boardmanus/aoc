@@ -1,5 +1,9 @@
 use lazy_regex::regex_captures;
-use vec2d::Coord;
+use aoc_utils::vec2d::Vec2d;
+
+type Coord = Vec2d<usize>;
+
+const ADJUSTMENT: Coord = Coord::new(10000000000000, 10000000000000);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Claw {
@@ -14,28 +18,23 @@ impl Claw {
     }
 
     fn adjust(c: Coord) -> Coord {
-        Coord::new(c.x + 10000000000000, c.y + 10000000000000)
+        c + ADJUSTMENT
     }
 
     fn parse(input: &str, adjust_prize_loc: bool) -> Vec<Claw> {
         input
             .split("\n\n")
-            .map(|cm| {
-                let mut it = cm.lines().map(|line| {
+            .filter_map(|cm| {
+                let mut it = cm.lines().filter_map(|line| {
                     let (_, x_str, y_str) =
-                        regex_captures!(r"^.*: X[+=](\d+), Y[+=](\d+)$", line).unwrap();
-                    Coord::new(
-                        x_str.parse::<usize>().unwrap(),
-                        y_str.parse::<usize>().unwrap(),
-                    )
+                        regex_captures!(r"^.*: X[+=](\d+), Y[+=](\d+)$", line)?;
+                    Some(Coord::new(x_str.parse::<usize>().ok()?, y_str.parse::<usize>().ok()?))
                 });
-                let a = it.next().unwrap();
-                let b = it.next().unwrap();
-                let mut prize = it.next().unwrap();
+                let (a, b, mut prize) = (it.next()?, it.next()?, it.next()?);
                 if adjust_prize_loc {
-                    prize = Claw::adjust(prize);
+                    prize = Self::adjust(prize);
                 }
-                Claw::new(a, b, prize)
+                Some(Claw::new(a, b, prize))
             })
             .collect()
     }
