@@ -53,13 +53,13 @@ impl RobotGrid {
         let re = regex!(r"p=(\d+),(\d+) v=(-?\d+),(-?\d+)");
         let robots = input
             .lines()
-            .map(|line| {
-                let c = re.captures(line).unwrap();
-                let px = c.get(1).unwrap().as_str().parse::<i64>().unwrap();
-                let py = c.get(2).unwrap().as_str().parse::<i64>().unwrap();
-                let vx = c.get(3).unwrap().as_str().parse::<i64>().unwrap();
-                let vy = c.get(4).unwrap().as_str().parse::<i64>().unwrap();
-                Robot::new(Pos::new(px, py), Vel::new(vx, vy))
+            .filter_map(|line| {
+                let c = re.captures(line)?;
+                let px = c.get(1)?.as_str().parse::<i64>().ok()?;
+                let py = c.get(2)?.as_str().parse::<i64>().ok()?;
+                let vx = c.get(3)?.as_str().parse::<i64>().ok()?;
+                let vy = c.get(4)?.as_str().parse::<i64>().ok()?;
+                Some(Robot::new(Pos::new(px, py), Vel::new(vx, vy)))
             })
             .collect::<Vec<_>>();
         let grid = Grid::new('.', width, height);
