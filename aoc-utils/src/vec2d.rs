@@ -12,7 +12,7 @@ pub struct Vec2d<Scalar: Num> {
 }
 
 impl<Scalar: Num> Vec2d<Scalar> {
-    pub fn new(x: Scalar, y: Scalar) -> Vec2d<Scalar> {
+    pub const fn new(x: Scalar, y: Scalar) -> Vec2d<Scalar> {
         Vec2d { x, y }
     }
 }
