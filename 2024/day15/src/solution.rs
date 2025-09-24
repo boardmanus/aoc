@@ -11,20 +11,23 @@ fn robot_pos(grid: &WarehouseGrid) -> GridPos {
 }
 
 fn move_ops(moves: &mut Vec<GridPos>, grid: &WarehouseGrid, from: GridPos, dir: Dir4) -> bool {
-    let to = from + dir.into();
+    if moves.contains(&from) {
+        return true;
+    }
+    let to = from + dir;
     let to_c = grid.at(&to).unwrap();
     let ok_to_move = match to_c {
         '.' => true,
         'O' => move_ops(moves, grid, to, dir),
         '[' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::E.into(), dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::E, dir)
             }
             _ => move_ops(moves, grid, to, dir),
         },
         ']' => match dir {
             Dir4::N | Dir4::S => {
-                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::W.into(), dir)
+                move_ops(moves, grid, to, dir) && move_ops(moves, grid, to + Dir4::W, dir)
             }
             _ => move_ops(moves, grid, to, dir),
         },
@@ -32,7 +35,7 @@ fn move_ops(moves: &mut Vec<GridPos>, grid: &WarehouseGrid, from: GridPos, dir: 
         _ => false,
     };
 
-    if ok_to_move && !moves.contains(&from) {
+    if ok_to_move {
         moves.push(from);
     }
 
@@ -51,12 +54,12 @@ fn move_robot(grid: &mut WarehouseGrid, robot: GridPos, dir: Dir4) -> GridPos {
     let mut moves = Vec::<GridPos>::new();
     if move_ops(&mut moves, grid, robot, dir) {
         moves.into_iter().for_each(|from| {
-            let to = from + dir.into();
+            let to = from + dir;
             let c = grid.at(&from).unwrap();
             grid.set(&to, c);
             grid.set(&from, '.');
         });
-        robot + dir.into()
+        robot + dir
     } else {
         robot
     }
