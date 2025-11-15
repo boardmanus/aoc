@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use aoc_utils::{
     dir::{Dir, Dir4},
     grud::{Grid, GridPos},
-    lust::{Lust}
+    lust::Lust,
 };
 
 type Maze = Grid<char, Dir4>;
@@ -26,7 +26,7 @@ type Score = usize;
 #[derive(Debug, Clone)]
 struct PathScore {
     path: Path,
-    score: Score
+    score: Score,
 }
 
 impl<'a> PathScore {
@@ -35,10 +35,20 @@ impl<'a> PathScore {
     }
 }
 
-fn update_path_score<'a>(visited: &'a mut HashMap<PosDir, Score>, path: Path, score: Score) -> Option<PathScore> {
+/// Update the visited map with the new path and score if it's better than
+/// the current score for that position and direction.
+/// @param visited The map of visited positions and directions to their best scores.
+/// @param path The current path to update.
+/// @param score The score of the current path.
+/// @return Some(PathScore) if the path was updated, None otherwise.
+fn update_path_score<'a>(
+    visited: &'a mut HashMap<PosDir, Score>,
+    path: Path,
+    score: Score,
+) -> Option<PathScore> {
     let pos = path.data()?;
-    let current_score = visited.get(pos);
-    if score <= *current_score.unwrap_or(&usize::MAX) {
+    let current_score = *visited.get(pos).unwrap_or(&usize::MAX);
+    if score <= current_score {
         visited.insert(*pos, score);
         Some(PathScore::new(path, score))
     } else {
@@ -46,6 +56,38 @@ fn update_path_score<'a>(visited: &'a mut HashMap<PosDir, Score>, path: Path, sc
     }
 }
 
+/// Generate next possible paths from the current path score.
+/// A possible path is a single rotation and a step in the new direction, or
+/// a step in the same direction.
+/// @param grid The maze grid to check for walkability.
+/// @param path_score The current path score to generate next paths from.
+/// @return A vector of PathScore for each valid next path.
+fn generate_next_paths<'a>(grid: &Maze, path_score: &PathScore) -> Vec<PathScore> {
+    let score = path_score.score;
+    let Some(&PosDir { loc, dir }) = path_score.path.data() else {
+        return vec![];
+    };
+    [dir.rotate_cw(), dir, dir.rotate_ccw()]
+        .into_iter()
+        .filter_map(|new_dir| {
+            let new_pos_dir = PosDir::new(loc + new_dir, new_dir);
+            if grid.is_walkable(&loc, &new_pos_dir.loc) {
+                let new_score = score + if dir == new_dir { 1 } else { 1001 };
+                Some(PathScore::new(
+                    path_score.path.append(new_pos_dir),
+                    new_score,
+                ))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Find all paths from start 'S' to end 'E' in the maze.
+/// Returns a vector of PathScore for each successful path found.
+/// @param grid The maze grid to search.
+/// @return A vector of PathScore for each path from 'S' to 'E'.
 fn find_all_paths<'a>(grid: &Maze) -> Vec<PathScore> {
     let start = grid.find('S').unwrap();
     let end = grid.find('E').unwrap();
@@ -54,7 +96,7 @@ fn find_all_paths<'a>(grid: &Maze) -> Vec<PathScore> {
     let mut visited: HashMap<PosDir, Score> = HashMap::new();
     let mut to_visit: VecDeque<PathScore> = VecDeque::from([start_path]);
 
-    while let Some(PathScore { path, score}) = to_visit.pop_front() {
+    while let Some(PathScore { path, score }) = to_visit.pop_front() {
         let pos_dir = match path.data() {
             None => continue,
             Some(pd) => *pd,
@@ -64,40 +106,40 @@ fn find_all_paths<'a>(grid: &Maze) -> Vec<PathScore> {
             continue;
         }
         if let Some(path_score) = update_path_score(&mut visited, path, score) {
-            if let Some(&PosDir {loc, dir}) = path_score.path.data() {
-                [dir.rotate_cw(), dir, dir.rotate_ccw()].into_iter().filter_map(|new_dir| {
-                    let new_pos_dir = PosDir::new(loc + new_dir, new_dir);
-                    if !grid.is_walkable(&loc, &new_pos_dir.loc) {
-                        return None;
-                    }
-                    let new_score = score + if dir == new_dir { 1 } else { 1001 };
-                    Some(PathScore::new(path_score.path.append(new_pos_dir), new_score))
-                }).for_each(|path_score| to_visit.push_back(path_score));
+            for new_path_score in generate_next_paths(grid, &path_score) {
+                to_visit.push_back(new_path_score);
             }
         }
     }
     end_runs
 }
 
+/// Finds the best paths (with the lowest score) from 'S' to 'E' in the maze.
+/// @param grid The maze grid to search.
+/// @return A vector of PathScore for each best path found.
 fn find_best_paths<'a>(grid: &Maze) -> Vec<PathScore> {
     let end_runs = find_all_paths(grid);
-    let num_end_runs = end_runs.len();
-    if let Some(min_score) = end_runs.iter().map(|ps| ps.score).min() {
-        let paths = end_runs.into_iter().filter(|ps| ps.score == min_score).collect::<Vec<_>>();
-        println!("Best score: {}: num_paths={}/{}", min_score, paths.len(), num_end_runs);
-        paths
-    } else {
-        vec![]
-    }
+    let Some(min_score) = end_runs.iter().map(|ps| ps.score).min() else {
+        return vec![];
+    };
+    end_runs
+        .into_iter()
+        .filter(|ps| ps.score == min_score)
+        .collect::<Vec<_>>()
 }
 
+/// Finds the best locations (positions) from the best paths in the maze.
+/// @param grid The maze grid to search.
+/// @return A HashSet of GridPos representing the best locations.
 fn find_best_locations(grid: &Maze) -> HashSet<GridPos> {
-    find_best_paths(grid).iter().fold(HashSet::new(), |mut acc, ps| {
-        for pos in ps.path.iter().map(|pd| pd.loc) {
-            acc.insert(pos);
-        }
-        acc
-    })
+    find_best_paths(grid)
+        .iter()
+        .fold(HashSet::new(), |mut acc, ps| {
+            for pos in ps.path.iter().map(|pd| pd.loc) {
+                acc.insert(pos);
+            }
+            acc
+        })
 }
 
 pub fn part1(input: &str) -> usize {
