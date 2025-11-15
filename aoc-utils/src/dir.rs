@@ -13,6 +13,7 @@ pub trait Dir {
     fn rotate_ccw(&self) -> Self::DirType;
     fn from_i(i: usize) -> Self::DirType;
     fn to_i(&self) -> usize;
+    fn from_vec2d(v: DirVec) -> Self;
     fn to_vec2d(&self) -> DirVec;
 }
 
@@ -28,8 +29,20 @@ pub enum Dir8 {
     NW,
 }
 
+impl Dir8 {
+    const VEC_N: DirVec = Vec2d { x: 0, y: -1 };
+    const VEC_NE: DirVec = Vec2d { x: 1, y: -1 };
+    const VEC_E: DirVec = Vec2d { x: 1, y: 0 };
+    const VEC_SE: DirVec = Vec2d { x: 1, y: 1 };
+    const VEC_S: DirVec = Vec2d { x: 0, y: 1 };
+    const VEC_SW: DirVec = Vec2d { x: -1, y: 1 };
+    const VEC_W: DirVec = Vec2d { x: -1, y: 0 };
+    const VEC_NW: DirVec = Vec2d { x: -1, y: -1 };
+}
+
 impl Dir for Dir8 {
     type DirType = Self;
+
     fn cw() -> All<Dir8> {
         all::<Dir8>()
     }
@@ -72,16 +85,30 @@ impl Dir for Dir8 {
         }
     }
 
+    fn from_vec2d(v: DirVec) -> Self {
+        match v {
+            Self::VEC_N => Dir8::N,
+            Self::VEC_NE => Dir8::NE,
+            Self::VEC_E => Dir8::E,
+            Self::VEC_SE => Dir8::SE,
+            Self::VEC_S => Dir8::S,
+            Self::VEC_SW => Dir8::SW,
+            Self::VEC_W => Dir8::W,
+            Self::VEC_NW => Dir8::NW,
+            _ => panic!("Invalid vector for Dir8"),
+        }
+    }
+
     fn to_vec2d(&self) -> DirVec {
         match self {
-            Dir8::N => Vec2d { x: 0, y: -1 },
-            Dir8::NE => Vec2d { x: 1, y: -1 },
-            Dir8::E => Vec2d { x: 1, y: 0 },
-            Dir8::SE => Vec2d { x: 1, y: 1 },
-            Dir8::S => Vec2d { x: 0, y: 1 },
-            Dir8::SW => Vec2d { x: -1, y: 1 },
-            Dir8::W => Vec2d { x: -1, y: 0 },
-            Dir8::NW => Vec2d { x: -1, y: -1 },
+            Dir8::N => Self::VEC_N,
+            Dir8::NE => Self::VEC_NE,
+            Dir8::E => Self::VEC_E,
+            Dir8::SE => Self::VEC_SE,
+            Dir8::S => Self::VEC_S,
+            Dir8::SW => Self::VEC_SW,
+            Dir8::W => Self::VEC_W,
+            Dir8::NW => Self::VEC_NW,
         }
     }
 }
@@ -104,6 +131,13 @@ pub enum Dir4 {
     E,
     S,
     W,
+}
+
+impl Dir4 {
+    const VEC_N: DirVec = Vec2d { x: 0, y: -1 };
+    const VEC_E: DirVec = Vec2d { x: 1, y: 0 };
+    const VEC_S: DirVec = Vec2d { x: 0, y: 1 };
+    const VEC_W: DirVec = Vec2d { x: -1, y: 0 };
 }
 
 impl Dir for Dir4 {
@@ -143,12 +177,22 @@ impl Dir for Dir4 {
         }
     }
 
+    fn from_vec2d(v: DirVec) -> Self {
+        match v {
+            Self::VEC_N => Dir4::N,
+            Self::VEC_E => Dir4::E,
+            Self::VEC_S => Dir4::S,
+            Self::VEC_W => Dir4::W,
+            _ => panic!("Invalid vector for Dir4"),
+        }
+    }
+
     fn to_vec2d(&self) -> DirVec {
         match self {
-            Dir4::N => Vec2d { x: 0, y: -1 },
-            Dir4::E => Vec2d { x: 1, y: 0 },
-            Dir4::S => Vec2d { x: 0, y: 1 },
-            Dir4::W => Vec2d { x: -1, y: 0 },
+            Dir4::N => Self::VEC_N,
+            Dir4::E => Self::VEC_E,
+            Dir4::S => Self::VEC_S,
+            Dir4::W => Self::VEC_W,
         }
     }
 }

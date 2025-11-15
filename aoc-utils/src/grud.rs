@@ -263,21 +263,21 @@ where
         GridColIter::<Item, D>::new(self)
     }
 
-    pub fn is_valid(&self, index: &GridPos) -> bool {
-        index.x >= 0 && index.x < self.width as i64 && index.y >= 0 && index.y < self.height as i64
+    pub fn is_valid(&self, pos: &GridPos) -> bool {
+        pos.x >= 0 && pos.x < self.width as i64 && pos.y >= 0 && pos.y < self.height as i64
     }
 
-    pub fn value(&self, index: &GridPos) -> Option<&Item> {
-        if self.is_valid(index) {
-            Some(&self.g[self.i_from(index)])
+    pub fn value(&self, pos: &GridPos) -> Option<&Item> {
+        if self.is_valid(pos) {
+            Some(&self.g[self.i_from(pos)])
         } else {
             None
         }
     }
 
-    pub fn at(&self, index: &GridPos) -> Option<Item> {
-        if self.is_valid(index) {
-            Some(self.g[self.i_from(index)])
+    pub fn at(&self, pos: &GridPos) -> Option<Item> {
+        if self.is_valid(pos) {
+            Some(self.g[self.i_from(pos)])
         } else {
             None
         }
@@ -287,12 +287,12 @@ where
         GridPos::new((i % self.width) as i64, (i / self.width) as i64)
     }
 
-    fn i_from(&self, index: &GridPos) -> usize {
-        (index.x as usize) + (index.y as usize) * self.width
+    fn i_from(&self, pos: &GridPos) -> usize {
+        (pos.x as usize) + (pos.y as usize) * self.width
     }
 
-    pub fn set(&mut self, index: &GridPos, val: Item) -> Option<Item> {
-        let i = self.i_from(index);
+    pub fn set(&mut self, pos: &GridPos, val: Item) -> Option<Item> {
+        let i = self.i_from(pos);
         if i < self.g.len() {
             let old = self.g[i];
             self.g[i] = val;
@@ -312,17 +312,25 @@ where
         })
     }
 
-    pub fn around(&self, index: GridPos) -> impl Iterator<Item = GridPos> {
-        D::cw().map(move |d| index + d.to_vec2d())
+    pub fn is_walkable(&self, a: &GridPos, b: &GridPos) -> bool {
+        (self.walkable)(self, a, b)
     }
 
-    pub fn neighbours(&self, index: GridPos) -> impl Iterator<Item = GridPos> + '_ {
-        self.around(index)
-            .filter(move |n| (self.walkable)(self, &index, n))
+    pub fn around(&self, pos: GridPos) -> impl Iterator<Item = GridPos> {
+        D::cw().map(move |d| pos + d.to_vec2d())
     }
 
-    pub fn matches(&self, index: &GridPos, c: Item) -> bool {
-        self.at(index) == Some(c)
+    pub fn neighbours(&self, pos: GridPos) -> impl Iterator<Item = GridPos> + '_ {
+        self.around(pos)
+            .filter(move |n| self.is_walkable(&pos, n))
+    }
+
+    pub fn is_neighbour(&self, a: GridPos, b: GridPos) -> bool {
+        self.neighbours(a).any(|n| n == b)
+    }
+
+    pub fn matches(&self, pos: &GridPos, c: Item) -> bool {
+        self.at(pos) == Some(c)
     }
 
     pub fn filter_items(&self, c: Item) -> impl Iterator<Item = GridPos> + '_ {
@@ -404,5 +412,10 @@ mod tests {
             g.neighbours(GridPos::new(2, 1)).collect::<HashSet<_>>(),
             HashSet::from([GridPos::new(2, 0), GridPos::new(1, 2), GridPos::new(3, 2)])
         );
+
+        assert!(g.is_walkable(&GridPos::new(2, 1), &GridPos::new(2, 0)));
+        assert!(!g.is_walkable(&GridPos::new(2, 1), &GridPos::new(1, 1)));
+        assert!(g.is_neighbour(GridPos::new(2, 1), GridPos::new(2, 0)));
+        assert!(!g.is_neighbour(GridPos::new(2, 1), GridPos::new(1, 1)));
     }
 }
