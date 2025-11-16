@@ -1,4 +1,4 @@
-use std::ops::Shl;
+use std::{fmt::Display, ops::Shl};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Registers {
@@ -37,13 +37,13 @@ impl Registers {
     }
 
     fn adv(&mut self, val: u8) -> Option<u8> {
-        self.a = self.a / 1u64.shl(self.combo(val));
+        self.a /= 1u64.shl(self.combo(val));
         self.ip += 2;
         None
     }
 
     fn bxl(&mut self, val: u8) -> Option<u8> {
-        self.b = (self.b ^ (val as u64));
+        self.b ^= val as u64;
         self.ip += 2;
         None
     }
@@ -64,7 +64,7 @@ impl Registers {
     }
 
     fn bxc(&mut self, _val: u8) -> Option<u8> {
-        self.b = self.b ^ self.c;
+        self.b ^= self.c;
         self.ip += 2;
         None
     }
@@ -112,8 +112,21 @@ impl OpCode {
             _ => panic!(),
         }
     }
+}
 
-    fn run(&self, registers: &mut Registers) {}
+impl Display for OpCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OpCode::Adv(v) => write!(f, "ADV({v})"),
+            OpCode::Bxl(v) => write!(f, "BXL({v})"),
+            OpCode::Bst(v) => write!(f, "BST({v})"),
+            OpCode::Jnz(v) => write!(f, "JNZ({v})"),
+            OpCode::Bxc(v) => write!(f, "BXC({v})"),
+            OpCode::Out(v) => write!(f, "OUT({v})"),
+            OpCode::Bdv(v) => write!(f, "BDV({v})"),
+            OpCode::Cdv(v) => write!(f, "CDV({v})"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,6 +136,7 @@ struct Computer {
 }
 
 impl Computer {
+    #[cfg(test)]
     fn new(registers: Registers, memory: Vec<u8>) -> Computer {
         Computer { registers, memory }
     }
@@ -143,16 +157,17 @@ impl Computer {
             }
             num_instructions += 1;
         }
+        println!("{:03}: HLT(.) {:?}", self.registers.ip, self.registers);
+        println!("Output: {:?}", output);
         (output, num_instructions)
     }
-    fn parse(input: &str) -> Computer {
+
+    fn parse(input: &str) -> Option<Computer> {
         let mut sections = input.split("\n\n");
-        let mut initial_vals = sections
-            .next()
-            .unwrap()
+        let initial_vals = sections
+            .next()?
             .lines()
-            .map(|line| line.split(": ").last().unwrap().parse::<u64>().unwrap())
-            .map(|value| value)
+            .filter_map(|line| line.split(": ").last()?.parse::<u64>().ok())
             .collect::<Vec<_>>();
         // IP
         let registers = Registers {
@@ -164,19 +179,18 @@ impl Computer {
 
         let memory = input
             .split(": ")
-            .last()
-            .unwrap()
+            .last()?
             .trim()
             .split(",")
-            .map(|x| x.parse::<u8>().unwrap())
+            .filter_map(|x| x.parse::<u8>().ok())
             .collect::<Vec<_>>();
 
-        Computer { registers, memory }
+        Some(Computer { registers, memory })
     }
 }
 
 pub fn part1(input: &str) -> String {
-    let mut computer = Computer::parse(input);
+    let mut computer = Computer::parse(input).expect("Failed to parse input");
     let (output, _num_instructions) = computer.run();
     output
         .iter()
@@ -186,7 +200,7 @@ pub fn part1(input: &str) -> String {
 }
 
 pub fn part2(input: &str) -> u64 {
-    let mut computer = Computer::parse(input);
+    let mut computer = Computer::parse(input).expect("Failed to parse input");
     let num_digits = computer.memory.len();
     let mut valid = vec![0u64];
     for length in (0..num_digits).rev() {
@@ -204,8 +218,8 @@ pub fn part2(input: &str) -> u64 {
                     &computer.memory[length..]
                 );
                 if output == computer.memory[length..] {
-                    println!("match: {:?}", output);
-                    valid.push(new_a)
+                    valid.push(new_a);
+                    println!("match: {:?}: valid={:?}", output, valid);
                 }
             }
         }
@@ -226,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_parse_input() {
-        let computer = Computer::parse(TEST_INPUT);
+        let computer = Computer::parse(TEST_INPUT).expect("Failed to parse input");
         assert_eq!(
             computer.registers,
             Registers {
@@ -258,12 +272,12 @@ mod tests {
 
     #[test]
     fn test_assumption() {
-        let mut computer = Computer::parse(INPUT);
+        let mut computer = Computer::parse(INPUT).expect("Failed to parse input");
         let num_digits = computer.memory.len();
         let min_a = 8u64.pow(num_digits as u32 - 1);
         let a = min_a;
         let mut offset = 1;
-        let mut last_digit = 0;
+        //let mut last_digit = 0;
         for j in 0..num_digits / 2 {
             for i in 0..100 {
                 computer.registers = Registers::new(0, a + i * offset, 0, 0);
@@ -276,7 +290,7 @@ mod tests {
                 if i != 0 {
                     //assert_ne!(last_digit, output[j]);
                 }
-                last_digit = output[j];
+                //last_digit = output[j];
             }
             offset *= 8;
         }
@@ -284,8 +298,7 @@ mod tests {
 
     #[test]
     fn test_sequence() {
-        let mut computer = Computer::parse(INPUT);
-        let num_digits = computer.memory.len();
+        let mut computer = Computer::parse(INPUT).expect("Failed to parse input");
         let mut sequence = Vec::<u8>::new();
         let digit = 10;
         let min = 8u64.pow(digit);
