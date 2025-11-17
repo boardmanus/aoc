@@ -1,63 +1,28 @@
 use std::collections::HashMap;
 
-use aoc_utils::str::AocStr;
-
-struct TowelEntry {
-    towel_end: bool,
-    others: HashMap<char, TowelEntry>,
-}
-
-impl TowelEntry {
-    fn new(towel_end: bool, towels: &Vec<&str>) -> TowelEntry {
-        let mut others: HashMap<char, TowelEntry> = HashMap::new();
-        for stripe in "wubrg".chars() {
-            let next_towels = towels
-                .iter()
-                .filter(|t| t.first() == Some(stripe))
-                .map(|&s| &s[1..])
-                .collect::<Vec<_>>();
-            if !next_towels.is_empty() {
-                let end = towels
-                    .iter()
-                    .any(|t| t.len() == 1 && t.first() == Some(stripe));
-                others.insert(stripe, TowelEntry::new(end, &next_towels));
-            }
-        }
-
-        TowelEntry { towel_end, others }
-    }
-}
-
 struct Puzzle<'a> {
     towels: Vec<&'a str>,
     designs: Vec<&'a str>,
-    towel_tree: TowelEntry,
 }
 
 impl<'a> Puzzle<'a> {
-    fn parse(input: &str) -> Puzzle {
+    fn parse(input: &'a str) -> Option<Puzzle<'a>> {
         let mut lines = input.lines();
-        let towels = lines.next().unwrap().split(", ").collect::<Vec<_>>();
-        let _ = lines.next();
-        let designs = lines.collect::<Vec<_>>();
-        let towel_tree = TowelEntry::new(false, &towels);
-        Puzzle {
-            towels,
-            designs,
-            towel_tree,
-        }
+        let towels = lines.next()?.split(", ").collect::<Vec<_>>();
+        let designs = lines.skip(1).collect::<Vec<_>>();
+        Some(Puzzle { towels, designs })
     }
 }
 
 fn is_feasible_design(puzzle: &Puzzle, design: &str) -> bool {
     let mut possies: Vec<&str> = vec![design];
     while let Some(design) = possies.pop() {
-        for towel in puzzle.towels.iter() {
-            if design.starts_with(towel) {
-                if design.len() == towel.len() {
+        for &towel in puzzle.towels.iter() {
+            if let Some(rest) = design.strip_prefix(towel) {
+                if rest.is_empty() {
                     return true;
                 }
-                possies.push(&design[towel.len()..])
+                possies.push(rest)
             }
         }
     }
@@ -65,46 +30,43 @@ fn is_feasible_design(puzzle: &Puzzle, design: &str) -> bool {
     false
 }
 
-fn num_possible_designs(
-    design: &str,
-    position: usize,
-    possibilities: &mut [Option<usize>],
-    towels: &[&str],
+fn num_possible_arrangements_r<'a>(
+    design: &'a str,
+    towels: &[&'a str],
+    visited: &mut HashMap<&'a str, usize>,
 ) -> usize {
-    if design.len() == 0 {
-        return 1;
+    if design.is_empty() {
+        0
+    } else if let Some(&val) = visited.get(design) {
+        val
+    } else {
+        let sum = towels
+            .iter()
+            .map(|&towel| {
+                if design == towel {
+                    1
+                } else if let Some(rest) = design.strip_prefix(towel) {
+                    num_possible_arrangements_r(rest, towels, visited)
+                } else {
+                    0
+                }
+            })
+            .sum();
+        visited.insert(design, sum);
+        sum
     }
-
-    if let Some(possibilities) = possibilities[position] {
-        return possibilities;
-    }
-
-    let possible = towels
-        .iter()
-        .map(|towel| {
-            if !design.starts_with(towel) {
-                0
-            } else {
-                num_possible_designs(
-                    &design[towel.len()..],
-                    position + towel.len(),
-                    possibilities,
-                    towels,
-                )
-            }
-        })
-        .sum();
-
-    possibilities[position] = Some(possible);
-
-    possible
 }
 
-fn all_possible_designs(puzzle: &Puzzle) -> usize {
+fn num_possible_arrangements(design: &str, towels: &[&str]) -> usize {
+    let mut visited: HashMap<&str, usize> = HashMap::new();
+    num_possible_arrangements_r(design, towels, &mut visited)
+}
+
+fn total_possible_arrangements(puzzle: &Puzzle) -> usize {
     puzzle
         .designs
         .iter()
-        .map(|d| num_possible_designs(d, 0, &mut vec![None; d.len()], &puzzle.towels))
+        .map(|d| num_possible_arrangements(d, &puzzle.towels))
         .sum()
 }
 
@@ -117,13 +79,13 @@ fn num_feasible_designs(puzzle: &Puzzle) -> usize {
 }
 
 pub fn part1(input: &str) -> usize {
-    let puzzle = Puzzle::parse(input);
+    let puzzle = Puzzle::parse(input).expect("Failed to parse input");
     num_feasible_designs(&puzzle)
 }
 
 pub fn part2(input: &str) -> usize {
-    let puzzle = Puzzle::parse(input);
-    all_possible_designs(&puzzle)
+    let puzzle = Puzzle::parse(input).expect("Failed to parse input");
+    total_possible_arrangements(&puzzle)
 }
 
 #[cfg(test)]
