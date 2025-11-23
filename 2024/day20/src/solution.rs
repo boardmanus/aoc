@@ -2,117 +2,84 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use aoc_utils::{
     dir::{Dir, Dir4},
-    grid::{Grid, Index},
-    grif, grud,
+    grud::{Grid, GridPos},
+    vec2d::VecSize,
 };
 
 #[derive(Debug, Clone)]
-struct GrudMaze {
-    grid: grud::Grid<char>,
-    start: grud::GridPos,
-    end: grud::GridPos,
-}
-
-impl GrudMaze {
-    fn parse(input: &str) -> Option<GrudMaze> {
-        let grid = grud::Grid::<char>::parse(input);
-        let start = grid.find('S')?;
-        let end = grid.find('E')?;
-        Some(GrudMaze { grid, start, end })
-    }
-
-    fn walkable(&self, _from: &grud::GridPos, to: &grud::GridPos) -> bool {
-        self.grid.at(to) != Some('#')
-    }
-
-    fn shortest_path(&self) -> HashMap<Index, usize> {
-        let sp = grif::shortest_path(&self.node_at(&self.start), &self.node_at(&self.end));
-        let mut visited: HashMap<Index, usize> = HashMap::new();
-        let mut possies = VecDeque::<(grud::GridPos, usize)>::from([(self.start, 0)]);
-        while let Some((pos, len)) = possies.pop_front() {
-            if pos == self.end {
-                visited.insert(pos, len);
-                break;
-            } else {
-                Dir4::cw()
-                    .map(|dir| pos + dir)
-                    .filter(|pos_next| {
-                        !self.grid.matches(*pos_next, '#') && !visited.contains_key(pos_next)
-                    })
-                    .for_each(|pos| possies.push_back((pos, len + 1)));
-                visited.insert(pos, len);
-            }
-        }
-        visited
-    }
-}
-
-#[derive(Debug, Clone)]
 struct Maze {
-    grid: Grid<char>,
-    start: Index,
-    end: Index,
+    grid: Grid<char, Dir4>,
+    start: GridPos,
+    end: GridPos,
 }
 
 impl Maze {
     fn parse(input: &str) -> Option<Maze> {
-        let grid = Grid::<char>::parse(input);
+        let grid = Grid::<char, Dir4>::parse(input);
         let start = grid.find('S')?;
         let end = grid.find('E')?;
         Some(Maze { grid, start, end })
     }
 
-    fn shortest_path(&self) -> HashMap<Index, usize> {
-        let mut visited: HashMap<Index, usize> = HashMap::new();
-        let mut possies = VecDeque::<(Index, usize)>::from([(self.start, 0)]);
+    fn shortest_path(&self) -> HashMap<GridPos, usize> {
+        let mut visited: HashMap<GridPos, usize> = HashMap::new();
+        let mut possies = VecDeque::<(GridPos, usize)>::from([(self.start, 0)]);
         while let Some((pos, len)) = possies.pop_front() {
+            visited.insert(pos, len);
             if pos == self.end {
-                visited.insert(pos, len);
                 break;
             } else {
                 Dir4::cw()
                     .map(|dir| pos + dir)
                     .filter(|pos_next| {
-                        !self.grid.matches(*pos_next, '#') && !visited.contains_key(pos_next)
+                        !self.grid.matches(pos_next, '#') && !visited.contains_key(pos_next)
                     })
                     .for_each(|pos| possies.push_back((pos, len + 1)));
-                visited.insert(pos, len);
             }
         }
         visited
     }
 
+    #[cfg(test)]
+    fn num_walkable(&self) -> usize {
+        self.grid
+            .iter()
+            .filter(|&c| match c {
+                '.' | 'S' | 'E' => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    #[cfg(test)]
     fn shortest_path_len(&self) -> Option<usize> {
         let visited = self.shortest_path();
         Some(*visited.get(&self.end)?)
     }
 
-    fn single_wall(&self, pos: Index, dir: Dir4) -> Option<(Index, Dir4)> {
+    fn single_wall(&self, pos: GridPos, dir: Dir4) -> Option<(GridPos, Dir4)> {
         let poss_wall = pos + dir;
-        if self.grid.at(poss_wall)? == '#' {
-            let next_pos = poss_wall + dir;
-            if self.grid.at(next_pos)? == '#' {
-                None
-            } else {
-                Some((pos, dir))
-            }
-        } else {
-            None
+        match self.grid.at(&poss_wall)? {
+            '#' => match self.grid.at(&(poss_wall + dir))? {
+                '#' => None,
+                _ => Some((pos, dir)),
+            },
+            _ => None,
         }
     }
 
-    fn cheats_for_pos(&self, pos: Index, time: i64) -> Vec<Index> {
+    fn cheats_for_pos(&self, pos: GridPos, time: i64) -> Vec<GridPos> {
         // find all path positions reachable in the time frame
-        let mut cheat_pos: Vec<Index> = vec![];
-        for y in (pos.1 - time)..=(pos.1 + time) {
-            let xmax = time - (y - pos.1).abs();
+        let mut cheat_pos: Vec<GridPos> = vec![];
+        for y in (pos.y - time)..=(pos.y + time) {
+            let xmax = time - (y - pos.y).abs();
             assert!(xmax >= 0 && xmax <= time);
-            for x in (pos.0 - xmax)..=(pos.0 + xmax) {
-                let new_pos = Index(x, y);
+            for x in (pos.x - xmax)..=(pos.x + xmax) {
+                let new_pos = GridPos::new(x, y);
                 if new_pos == pos {
                     continue;
                 }
-                if let Some(c) = self.grid.at(new_pos) {
+                if let Some(c) = self.grid.at(&new_pos) {
                     if c != '#' {
                         cheat_pos.push(new_pos);
                     }
@@ -124,83 +91,136 @@ impl Maze {
 
     fn adv_cheat_length(
         &self,
-        visited: &HashMap<Index, usize>,
+        visited: &HashMap<GridPos, usize>,
         max_len: usize,
-        start_pos: Index,
-        cheat_pos: Index,
-    ) -> usize {
-        let start_len = visited.get(&start_pos).unwrap();
-        let end_len = max_len - visited.get(&cheat_pos).unwrap();
-        let md = ((start_pos.0 - cheat_pos.0).abs() + (start_pos.1 - cheat_pos.1).abs()) as usize;
-        start_len + md + end_len
+        start_pos: GridPos,
+        cheat_pos: GridPos,
+    ) -> Option<usize> {
+        let start_len = visited.get(&start_pos)?;
+        let end_len = max_len - visited.get(&cheat_pos)?;
+        let v = cheat_pos - start_pos;
+        let cheat_len = v.manhattan() as usize;
+        Some(start_len + cheat_len + end_len)
     }
 
+    fn num_cheat_paths_for_pos(
+        &self,
+        visited: &HashMap<GridPos, usize>,
+        max_len: usize,
+        pos: GridPos,
+        time: i64,
+        min_reduction: usize,
+    ) -> usize {
+        let cheats = self.cheats_for_pos(pos, time);
+        cheats
+            .iter()
+            .filter_map(|&cheat_pos| self.adv_cheat_length(visited, max_len, pos, cheat_pos))
+            .filter(|&cheat_len| max_len.saturating_sub(cheat_len) >= min_reduction)
+            .count()
+    }
+
+    #[cfg(test)]
     fn cheat_paths_for_pos(
         &self,
-        visited: &HashMap<Index, usize>,
+        visited: &HashMap<GridPos, usize>,
         max_len: usize,
-        pos: Index,
+        pos: GridPos,
         time: i64,
-        cheat_map: &mut HashMap<usize, usize>,
-    ) {
+        min_reduction: usize,
+    ) -> Vec<(GridPos, usize)> {
         let cheats = self.cheats_for_pos(pos, time);
-        cheats.iter().for_each(|&cheat_pos| {
-            let total = self.adv_cheat_length(visited, max_len, pos, cheat_pos);
-            if max_len >= total {
-                let savings = max_len - total;
-                *cheat_map.entry(savings).or_default() += 1;
-            }
-        })
+        cheats
+            .iter()
+            .filter_map(|&cheat_pos| {
+                if let Some(cheat_len) = self.adv_cheat_length(visited, max_len, pos, cheat_pos) {
+                    if max_len.saturating_sub(cheat_len) >= min_reduction {
+                        Some((cheat_pos, max_len.saturating_sub(cheat_len)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    fn filtered_cheat_paths_for_pos(
+        &self,
+        visited: &HashMap<GridPos, usize>,
+        time: i64,
+        min_reduction: usize,
+    ) -> Vec<(GridPos, Vec<(GridPos, usize)>)> {
+        let Some(&max_len) = visited.get(&self.end) else {
+            return vec![];
+        };
+        visited
+            .iter()
+            .map(|(&pos, _path_len)| {
+                (
+                    pos,
+                    self.cheat_paths_for_pos(visited, max_len, pos, time, min_reduction),
+                )
+            })
+            .filter(|(_pos, cheats)| !cheats.is_empty())
+            .collect()
     }
 
     fn find_num_adv_cheat_paths(
         &self,
-        visited: &HashMap<Index, usize>,
+        visited: &HashMap<GridPos, usize>,
         time: i64,
         min_reduction: usize,
     ) -> usize {
-        let max_len = *visited.get(&self.end).unwrap();
-        let mut cheat_map: HashMap<usize, usize> = HashMap::new();
-        visited.iter().for_each(|(&pos, _)| {
-            self.cheat_paths_for_pos(visited, max_len, pos, time, &mut cheat_map);
-        });
-
-        cheat_map
+        let Some(&max_len) = visited.get(&self.end) else {
+            return 0;
+        };
+        visited
             .iter()
-            .filter(|x| *x.0 >= min_reduction)
-            .map(|x| x.1)
+            .map(|(&pos, _)| {
+                self.num_cheat_paths_for_pos(visited, max_len, pos, time, min_reduction)
+            })
             .sum()
     }
 
-    fn removable_walls(&self, visited: &HashMap<Index, usize>) -> Vec<(Index, Dir4)> {
-        let mut walls = HashSet::<(Index, Dir4)>::new();
+    fn removable_walls(&self, visited: &HashMap<GridPos, usize>) -> Vec<(GridPos, Dir4)> {
+        let mut walls = HashSet::<(GridPos, Dir4)>::new();
         visited.keys().for_each(|&pos| {
-            let _ = Dir4::cw()
+            Dir4::cw()
                 .filter_map(|dir| self.single_wall(pos, dir))
                 .for_each(|pos| _ = walls.insert(pos));
         });
-        walls.iter().map(|&x| x).collect()
+        walls.iter().copied().collect()
     }
 
     fn cheat_length(
         &self,
         max_len: usize,
-        visited: &HashMap<Index, usize>,
-        wall: (Index, Dir4),
-    ) -> usize {
-        let start_len = visited.get(&wall.0).unwrap();
-        let end_pos = wall.0 + wall.1 + wall.1;
-        let end_len = max_len - visited.get(&end_pos).unwrap() + 1;
-        start_len + 1 + end_len
+        visited: &HashMap<GridPos, usize>,
+        wall: (GridPos, Dir4),
+    ) -> Option<usize> {
+        let start_len = visited.get(&wall.0)?;
+        let cheat_pos = wall.0 + wall.1 + wall.1;
+        let cheat_len = visited.get(&cheat_pos)?;
+        let end_len = max_len - cheat_len + 1;
+        Some(start_len + 1 + end_len)
     }
 
-    fn find_num_cheat_paths(&self, visited: &HashMap<Index, usize>, min_reduction: usize) -> usize {
-        let max_path_len = *visited.get(&self.end).unwrap();
-        let walls = self.removable_walls(&visited);
+    fn find_num_cheat_paths(
+        &self,
+        visited: &HashMap<GridPos, usize>,
+        min_reduction: usize,
+    ) -> usize {
+        let Some(&max_path_len) = visited.get(&self.end) else {
+            return 0;
+        };
+        let walls = self.removable_walls(visited);
         let min_len = max_path_len - min_reduction;
         let num_cheats = walls
             .iter()
-            .filter(|&wall| self.cheat_length(max_path_len, &visited, *wall) <= min_len)
+            .filter_map(|&wall| self.cheat_length(max_path_len, visited, wall))
+            .filter(|&len| len <= min_len)
             .count();
 
         num_cheats
@@ -212,13 +232,13 @@ impl Maze {
 //    - only look at walls adjacent to shortest path
 //    - ignore "double" walls
 pub fn part1(input: &str) -> usize {
-    let maze = Maze::parse(input).unwrap();
+    let maze = Maze::parse(input).expect("valid maze");
     let visited = maze.shortest_path();
     maze.find_num_cheat_paths(&visited, 100)
 }
 
 pub fn part2(input: &str) -> usize {
-    let maze = Maze::parse(input).unwrap();
+    let maze = Maze::parse(input).expect("valid maze");
     let visited = maze.shortest_path();
     maze.find_num_adv_cheat_paths(&visited, 20, 100)
 }
@@ -227,68 +247,105 @@ pub fn part2(input: &str) -> usize {
 mod tests {
 
     use super::*;
-
     pub const TEST_INPUT: &str = include_str!("data/input_example");
+    pub const HACKED_TEST_INPUT: &str = include_str!("data/input_example_hacked");
 
     #[test]
     fn test_cheats_for_pos() {
         let maze = Maze::parse(TEST_INPUT).unwrap();
         let test_pos = vec![
-            Index(1, 3),
-            Index(1, 2),
-            Index(3, 3),
-            Index(3, 2),
-            Index(3, 1),
+            GridPos::new(1, 3),
+            GridPos::new(1, 2),
+            GridPos::new(3, 3),
+            GridPos::new(3, 2),
+            GridPos::new(3, 1),
         ];
 
         for pos in test_pos {
             let cheats = maze.cheats_for_pos(pos, 6);
             cheats.iter().for_each(|cheat_pos| {
-                let md = (cheat_pos.0 - pos.0).abs() + (cheat_pos.1 - pos.1).abs();
+                let md = (cheat_pos.x - pos.x).abs() + (cheat_pos.y - pos.y).abs();
                 assert!(md <= 6);
             });
             println!("{:?} => {:?}", pos, cheats);
         }
     }
 
+    use aoc_utils::lust::Lust;
+
+    #[test]
+    fn test_num_paths() {
+        let maze = Maze::parse(HACKED_TEST_INPUT).unwrap();
+        let mut to_visit: VecDeque<Lust<GridPos>> = VecDeque::from([Lust::new(maze.start)]);
+        let mut paths: Vec<Lust<GridPos>> = vec![];
+        while let Some(path) = to_visit.pop_front() {
+            if let Some(&pos) = path.data() {
+                if pos == maze.end {
+                    paths.push(path);
+                } else {
+                    Dir4::cw()
+                        .map(|dir| pos + dir)
+                        .filter(|pos_next| {
+                            !maze.grid.matches(pos_next, '#') && !path.contains(pos_next)
+                        })
+                        .for_each(|pos_next| {
+                            to_visit.push_back(path.append(pos_next));
+                        });
+                }
+            }
+        }
+        println!("num paths: {}", paths.len());
+        for path in paths {
+            println!("{}", path);
+        }
+    }
+
     #[test]
     fn test_shortest_path() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         assert_eq!(maze.shortest_path_len(), Some(84));
     }
 
     #[test]
+    fn test_num_walkable() {
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
+        assert_eq!(maze.num_walkable(), maze.shortest_path().len());
+    }
+
+    #[test]
     fn test_removable_walls() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
         let x = maze.removable_walls(&visited);
         println!("{:?}", x);
-        assert!(x.contains(&(Index(3, 1), Dir4::E)));
-        assert!(x.contains(&(Index(12, 5), Dir4::S)));
-        assert!(x.contains(&(Index(12, 7), Dir4::N)));
+        assert!(x.contains(&(GridPos::new(3, 1), Dir4::E)));
+        assert!(x.contains(&(GridPos::new(12, 5), Dir4::S)));
+        assert!(x.contains(&(GridPos::new(12, 7), Dir4::N)));
     }
 
     #[test]
     fn test_cheat_len() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
         let mut test = visited.iter().map(|x| (*x.0, *x.1)).collect::<Vec<_>>();
         test.sort_by(|a, b| a.1.cmp(&b.1));
         println!("{:?}", test);
         let max_len = *visited.get(&maze.end).unwrap();
         assert_eq!(
-            maze.cheat_length(max_len, &visited, (Index(7, 7), Dir4::W)),
+            maze.cheat_length(max_len, &visited, (GridPos::new(7, 7), Dir4::W))
+                .expect("wall"),
             20
         );
         assert_eq!(
-            maze.cheat_length(max_len, &visited, (Index(8, 7), Dir4::S)),
+            maze.cheat_length(max_len, &visited, (GridPos::new(8, 7), Dir4::S))
+                .expect("wall"),
             max_len - 38
         );
     }
 
     #[test]
     fn test_find_num_cheat_paths() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
         assert_eq!(maze.find_num_cheat_paths(&visited, 64), 1);
         assert_eq!(maze.find_num_cheat_paths(&visited, 40), 2);
@@ -305,38 +362,84 @@ mod tests {
 
     #[test]
     fn test_adv_cheat_len() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
-        let max_len = *visited.get(&maze.end).unwrap();
+        let max_len = *visited.get(&maze.end).expect("end");
         assert_eq!(
-            maze.adv_cheat_length(&visited, max_len, Index(1, 3), Index(3, 7)),
-            max_len - 76
+            maze.adv_cheat_length(&visited, max_len, GridPos::new(1, 3), GridPos::new(3, 7)),
+            Some(max_len - 76)
         );
     }
 
     #[test]
     fn test_cheat_paths_for_pos() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
         let max_len = *visited.get(&maze.end).unwrap();
         let test_pos = vec![
-            Index(1, 3),
-            Index(1, 2),
-            Index(3, 3),
-            Index(3, 2),
-            Index(3, 1),
+            GridPos::new(1, 3),
+            GridPos::new(1, 2),
+            GridPos::new(3, 3),
+            GridPos::new(3, 2),
+            GridPos::new(3, 1),
         ];
         test_pos.iter().for_each(|pos| {
-            let mut cheat_map: HashMap<usize, usize> = HashMap::new();
-            maze.cheat_paths_for_pos(&visited, max_len, *pos, 6, &mut cheat_map);
-            println!("{:?} => {:?}", pos, cheat_map);
+            let cheats = maze.cheat_paths_for_pos(&visited, max_len, *pos, 6, 20);
+            println!("{} => {} - {:?}", pos, cheats.len(), cheats);
         });
     }
 
     #[test]
-    fn test_find_num_adv_cheat_paths() {
-        let maze = Maze::parse(TEST_INPUT).unwrap();
+    fn test_filtered_cheat_paths_for_pos() {
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
         let visited = maze.shortest_path();
-        assert_eq!(maze.find_num_adv_cheat_paths(&visited, 6, 76), 3);
+        let a = maze.filtered_cheat_paths_for_pos(&visited, 20, 75);
+        for (pos, cheats) in a {
+            println!("{} => {} - {:?}", pos, cheats.len(), cheats);
+        }
+    }
+
+    #[test]
+    fn test_find_num_adv_cheat_paths() {
+        let expected_results = vec![
+            (3, 76),
+            (4, 74),
+            (22, 72),
+            (12, 70),
+            (14, 68),
+            (12, 66),
+            (19, 64),
+            (20, 62),
+            (23, 60),
+            (25, 58),
+            (39, 56),
+            (29, 54),
+            (31, 52),
+            (32, 50),
+        ];
+        let maze = Maze::parse(TEST_INPUT).expect("valid maze");
+        let visited = maze.shortest_path();
+        println!("Shortest path length: {}", visited.len());
+        println!(
+            "End pos: {:?} = {}",
+            maze.end,
+            visited.get(&maze.end).unwrap()
+        );
+        expected_results
+            .iter()
+            .for_each(|(expected_cheats, reduction)| {
+                let x = maze.filtered_cheat_paths_for_pos(&visited, 20, *reduction);
+                println!("{:?}", x);
+                let num: usize = x
+                    .iter()
+                    .map(|(_pos, cheats)| {
+                        cheats
+                            .iter()
+                            .filter(|(_pos, size)| *size == *reduction)
+                            .count()
+                    })
+                    .sum();
+                assert_eq!(num, *expected_cheats, "reduction={}", reduction);
+            });
     }
 }

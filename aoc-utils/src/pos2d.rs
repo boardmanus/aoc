@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    fmt::Display,
     ops::{Add, Sub},
 };
 
@@ -15,6 +16,12 @@ use crate::{
 pub struct Pos2d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
+}
+
+impl<Scalar: Num + Display> Display for Pos2d<Scalar> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({},{})", self.x, self.y)
+    }
 }
 
 impl<Scalar: Num + PartialOrd> PartialOrd for Pos2d<Scalar> {
