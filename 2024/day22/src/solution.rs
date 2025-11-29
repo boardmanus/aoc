@@ -12,10 +12,6 @@ impl Secret {
             .collect()
     }
 
-    fn seed(seed: usize) -> Secret {
-        Secret(seed).next_value()
-    }
-
     fn mix(self, val: usize) -> Secret {
         Secret(val ^ self.0)
     }
@@ -41,14 +37,8 @@ impl Iterator for Secret {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 struct Seq([i8; 4]);
-
-impl Default for Seq {
-    fn default() -> Self {
-        Seq([0; 4])
-    }
-}
 
 impl Seq {
     fn from(slice: &[i8]) -> Seq {
@@ -78,7 +68,7 @@ fn price_seq_cache(secret: Secret, num: usize, cache: &mut SeqCache) {
     });
 
     for (seq, price) in seq_prices {
-        cache.entry(seq).or_insert_with(Vec::new).push(price);
+        cache.entry(seq).or_default().push(price);
     }
 }
 
@@ -97,8 +87,8 @@ pub fn part2(input: &str) -> usize {
         price_seq_cache(secret, 2000, &mut cache);
     }
     let max = cache
-        .iter()
-        .map(|(_seq, prices)| prices.iter().map(|p| *p as isize).sum())
+        .values()
+        .map(|prices| prices.iter().map(|p| *p as isize).sum())
         .max();
     max.unwrap_or(0) as usize
 }
