@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 type Wire = str;
 type Wires<'a> = HashMap<&'a str, usize>;
-type OpType = fn(usize, usize) -> usize;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Op {
@@ -32,6 +31,7 @@ impl Op {
         }
     }
 
+    #[allow(dead_code)]
     fn name(&self) -> &str {
         match self {
             Op::And => Op::AND,
@@ -91,45 +91,43 @@ fn bit_from_name(wire: &str) -> (&str, usize) {
 }
 
 impl<'a> Device<'a> {
-    fn parse(input: &str) -> Device {
+    fn parse(input: &'a str) -> Option<Device<'a>> {
         let mut it = input.split("\n\n");
         let wires = it
-            .next()
-            .unwrap()
+            .next()?
             .lines()
-            .fold(HashMap::new(), |mut acc, line| {
+            .filter_map(|line| {
                 let mut it = line.split(": ");
-                let wire = it.next().unwrap();
-                let val = it.next().unwrap().parse::<usize>().unwrap();
+                let wire = it.next()?;
+                let val = it.next()?.parse::<usize>().ok()?;
+                Some((wire, val))
+            })
+            .fold(HashMap::new(), |mut acc, (wire, val)| {
                 acc.insert(wire, val);
                 acc
             });
         let gates = it
-            .next()
-            .unwrap()
+            .next()?
             .lines()
-            .map(|line| {
+            .filter_map(|line| {
                 let mut it = line.split_whitespace();
-                let a = it.next().unwrap();
-                let op = Op::parse(it.next().unwrap()).unwrap();
-                let b = it.next().unwrap();
+                let in0 = it.next()?;
+                let op = Op::parse(it.next()?)?;
+                let in1 = it.next()?;
                 let _ = it.next();
-                let x = it.next().unwrap();
-                Gate {
-                    in0: a,
-                    in1: b,
-                    out: x,
-                    op,
-                }
+                let out = it.next()?;
+                Some(Gate { in0, in1, out, op })
             })
             .collect();
-        Device { wires, gates }
+        Some(Device { wires, gates })
     }
 
+    #[allow(dead_code)]
     fn new(wires: HashMap<&'a str, usize>, gates: Vec<Gate<'a>>) -> Device<'a> {
         Device { wires, gates }
     }
 
+    #[allow(dead_code)]
     fn new_inputs(&self, xs: usize, ys: usize) -> Device<'a> {
         let wires = self.wires.keys().fold(HashMap::new(), |mut wires, &wire| {
             let (prefix, bit) = bit_from_name(wire);
@@ -165,7 +163,7 @@ impl<'a> Device<'a> {
     }
 
     fn outputs(&self) -> HashMap<&str, usize> {
-        let mut gates = self.gates.iter().map(|g| g).collect::<Vec<_>>();
+        let mut gates = self.gates.iter().collect::<Vec<_>>();
         let mut wires = self.wires.clone();
         loop {
             gates = gates.iter().fold(vec![], |mut acc, gate| {
@@ -208,12 +206,13 @@ impl<'a> Device<'a> {
 }
 
 pub fn part1(input: &str) -> usize {
-    let device = Device::parse(input);
+    let device = Device::parse(input).expect("Failed to parse device");
     let z = device.z();
     println!("{:?}", z);
     z
 }
 
+#[allow(dead_code)]
 fn print_info<'a>(device: &Device<'a>) {
     let sum = device.sum();
     let outputs = device.outputs();
@@ -238,7 +237,7 @@ fn print_info<'a>(device: &Device<'a>) {
 }
 
 pub fn part2(input: &str) -> String {
-    let device = Device::parse(input);
+    let device = Device::parse(input).expect("Failed to parse device");
 
     // The circuit results in the addition of x + y.
     // Addition can be implemented in terms of xor, and, or.
@@ -335,11 +334,7 @@ mod tests {
     use super::*;
 
     use graphviz_rust::{
-        cmd::Format,
-        dot_generator::*,
-        dot_structures::*,
-        exec,
-        printer::{DotPrinter, PrinterContext},
+        cmd::Format, dot_generator::*, dot_structures::*, exec, printer::PrinterContext,
     };
 
     pub const TEST_INPUT: &str = include_str!("data/input_example");
@@ -362,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_graphviz() {
-        let device = Device::parse(include_str!("data/input"));
+        let device = Device::parse(include_str!("data/input")).expect("Failed to parse device");
         let stmts: Vec<Stmt> =
             device
                 .gates
