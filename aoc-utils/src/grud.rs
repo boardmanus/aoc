@@ -322,7 +322,7 @@ where
 
     pub fn neighbours(&self, pos: GridPos) -> impl Iterator<Item = GridPos> + '_ {
         self.around(pos)
-            .filter(move |n| self.is_walkable(&pos, n))
+            .filter(move |n| self.is_valid(n) && self.is_walkable(&pos, n))
     }
 
     pub fn is_neighbour(&self, a: GridPos, b: GridPos) -> bool {

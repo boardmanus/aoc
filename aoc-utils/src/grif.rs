@@ -42,6 +42,14 @@ pub trait Graph {
     fn bfs(&self, start: Self::NodeId) -> impl Iterator<Item = (Self::NodeId, usize)> {
         iterators::BfsIter::new(self, start)
     }
+
+    fn bfs_path(
+        &self,
+        start: Self::NodeId,
+        all_paths: bool,
+    ) -> impl Iterator<Item = iterators::Path<Self>> {
+        iterators::BfsPathIter::new(self, start, all_paths)
+    }
 }
 
 fn fmt_node<G: Graph>(g: &G, n: G::NodeId, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result

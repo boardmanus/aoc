@@ -9,7 +9,7 @@ where
     I: Iterator + Clone,
     I::Item: Clone,
 {
-    fn new(iter: I) -> Self {
+    pub fn new(iter: I) -> Self {
         let mut iter = iter;
         Pairs {
             first: iter.next(),

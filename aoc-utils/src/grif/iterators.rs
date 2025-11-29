@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use crate::lust::Lust;
+
 use super::Graph;
 
 pub struct DfsIter<'a, G, Pred>
@@ -102,6 +104,77 @@ where
             }
         }
         None
+    }
+}
+
+pub struct Path<G: Graph + ?Sized> {
+    pub nodes: Lust<G::NodeId>,
+    pub size: usize,
+}
+
+impl<G: Graph + ?Sized> Path<G> {
+    pub fn start(nodes: G::NodeId) -> Path<G> {
+        Path {
+            nodes: Lust::new(nodes),
+            size: 0,
+        }
+    }
+
+    pub fn new(nodes: Lust<G::NodeId>, size: usize) -> Path<G> {
+        Path { nodes, size }
+    }
+}
+
+pub struct BfsPathIter<'a, G>
+where
+    G: Graph + ?Sized,
+{
+    graph: &'a G,
+    visited: BTreeMap<G::NodeId, usize>,
+    stack: VecDeque<Path<G>>,
+    all_paths: bool,
+}
+
+impl<'a, G> BfsPathIter<'a, G>
+where
+    G: Graph + ?Sized,
+    G::NodeId: Copy + Eq + Ord,
+{
+    pub fn new(graph: &'a G, start: G::NodeId, all_paths: bool) -> BfsPathIter<'a, G> {
+        BfsPathIter {
+            graph,
+            visited: BTreeMap::from([(start, 0)]),
+            stack: VecDeque::from([Path::start(start)]),
+            all_paths,
+        }
+    }
+}
+
+impl<'a, G> Iterator for BfsPathIter<'a, G>
+where
+    G: Graph + ?Sized,
+    G::NodeId: Copy + Eq + Ord,
+{
+    type Item = Path<G>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(path) = self.stack.pop_front() {
+            for edge in self.graph.node_edges(*path.nodes.data()?) {
+                // Add all new nodes that haven't been marked for visitation
+                if let Some(&visited) = self.visited.get(&edge.0) {
+                    if !self.all_paths || visited < path.size {
+                        continue;
+                    }
+                }
+                let new_size = path.size + 1;
+                self.stack
+                    .push_back(Path::new(path.nodes.append(edge.0), new_size));
+                self.visited.insert(edge.0, new_size);
+            }
+            Some(path)
+        } else {
+            None
+        }
     }
 }
 
@@ -256,6 +329,56 @@ mod tests {
                 ("e", 2),
                 ("f", 3),
                 ("g", 3),
+                ("h", 4)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bfs_path_iterator() {
+        let g =
+            sh::SimpleGraphBuilder::parse("iter", "a-b\na-c\nb-d\nc-e\nd-f\ne-g\nf-h\ng-h", "-")
+                .unwrap();
+
+        let paths = BfsPathIter::new(&g, "a", false).collect::<Vec<_>>();
+        let path_sizes = paths
+            .iter()
+            .map(|p| (*p.nodes.data().unwrap(), p.size))
+            .collect::<Vec<_>>();
+        let p = paths.iter().map(|p| p.nodes.clone()).collect::<Vec<_>>();
+        p.iter().for_each(|p| println!("{}", p));
+        assert_eq!(
+            path_sizes,
+            vec![
+                ("a", 0),
+                ("b", 1),
+                ("c", 1),
+                ("d", 2),
+                ("e", 2),
+                ("f", 3),
+                ("g", 3),
+                ("h", 4)
+            ]
+        );
+
+        let paths = BfsPathIter::new(&g, "a", true).collect::<Vec<_>>();
+        let path_sizes = paths
+            .iter()
+            .map(|p| (*p.nodes.data().unwrap(), p.size))
+            .collect::<Vec<_>>();
+        let p = paths.iter().map(|p| p.nodes.clone()).collect::<Vec<_>>();
+        p.iter().for_each(|p| println!("{}", p));
+        assert_eq!(
+            path_sizes,
+            vec![
+                ("a", 0),
+                ("b", 1),
+                ("c", 1),
+                ("d", 2),
+                ("e", 2),
+                ("f", 3),
+                ("g", 3),
+                ("h", 4),
                 ("h", 4)
             ]
         );

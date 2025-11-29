@@ -79,6 +79,7 @@ impl<Data: Clone> IntoIterator for Lust<Data> {
     }
 }
 
+#[derive(Clone)]
 pub struct LustIt<Data> {
     rest: Rest<Data>,
 }
