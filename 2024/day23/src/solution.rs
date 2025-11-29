@@ -3,13 +3,13 @@ use aoc_utils::grif::{
 };
 
 pub fn part1(input: &str) -> usize {
-    let graph = SimpleGraphBuilder::parse("day23", input, "-").unwrap();
-    let cycles = find_cycles(&graph, 3, |&node| node.starts_with("t"));
+    let graph = SimpleGraphBuilder::<&str>::parse("day23", input, "-").unwrap();
+    let cycles = find_cycles(&graph, 3, |node| node.starts_with("t"));
     cycles.len()
 }
 
 pub fn part2(input: &str) -> String {
-    let graph = SimpleGraphBuilder::parse("day23", input, "-").unwrap();
+    let graph = SimpleGraphBuilder::<&str>::parse("day23", input, "-").unwrap();
     let mut max_clique = find_maximum_clique(&graph).unwrap();
     max_clique.sort();
     max_clique.join(",")
@@ -30,7 +30,7 @@ mod tests {
 
     #[test]
     fn test_any_3_cycle() {
-        let graph = SimpleGraphBuilder::parse("test-day23", TEST_INPUT, "-").unwrap();
+        let graph = SimpleGraphBuilder::<&str>::parse("test-day23", TEST_INPUT, "-").unwrap();
         let cycles = find_cycles(&graph, 3, |_| true);
         println!("cycles: {:?}", cycles);
         assert_eq!(cycles.len(), 12);
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_print_graph() {
-        let graph = SimpleGraphBuilder::parse("test-day23", TEST_INPUT, "-").unwrap();
+        let graph = SimpleGraphBuilder::<&str>::parse("test-day23", TEST_INPUT, "-").unwrap();
 
         let viz = graph.to_viz(false);
         println!("{:?}", viz);
