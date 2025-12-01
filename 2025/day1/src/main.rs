@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{io::Cursor, ops::Rem};
 
 fn parse_input(input: &str) -> Vec<(char, i64)> {
     input
@@ -12,19 +12,47 @@ fn parse_input(input: &str) -> Vec<(char, i64)> {
         .collect()
 }
 
+fn rotate(dir: char, clicks: i64) -> i64 {
+    match dir {
+        'L' => -clicks,
+        'R' => clicks,
+        _ => panic!("Unknown direction"),
+    }
+}
+
+fn zero_clicked(start_pos: i64, rotation: i64) -> (i64, i64) {
+    let linear_pos = start_pos + rotation;
+    let revolutions = rotation / 100;
+    let end_pos = linear_pos.rem_euclid(100);
+    let d = end_pos - start_pos;
+    let past_zero = if start_pos == 0 || d == 0 {
+        0
+    } else if end_pos == 0 {
+        1
+    } else {
+        match (rotation > 0, d > 0) {
+            (true, true) => 0,
+            (true, false) => 1,
+            (false, true) => 1,
+            (false, false) => 0,
+        }
+    };
+
+    println!(
+            "{start_pos}r{rotation}={linear_pos}={end_pos} => past_zero={past_zero}, rev={revolutions}, d={d} => {}",
+            revolutions + past_zero
+        );
+
+    (end_pos, revolutions.abs() + past_zero)
+}
+
 pub fn part1(input: &str) -> usize {
     let moves = parse_input(input);
     let mut pos = 50;
     moves
         .iter()
-        .map(|(dir, clicks)| {
-            println!("pos {pos} + ({dir}, {clicks})");
-            pos = match dir {
-                'L' => pos - clicks,
-                'R' => pos + clicks,
-                _ => panic!("Unknown direction"),
-            }
-            .rem_euclid(100);
+        .map(|&(dir, clicks)| {
+            pos = (pos + rotate(dir, clicks)).rem_euclid(100);
             pos
         })
         .filter(|&p| p == 0)
@@ -34,31 +62,14 @@ pub fn part1(input: &str) -> usize {
 pub fn part2(input: &str) -> usize {
     let moves = parse_input(input);
     let mut last_pos = 50;
-    moves.iter().fold(0, |zeros, (dir, clicks)| {
-        print!("pos {last_pos} + ({dir}, {clicks}) ");
-        let mut linear_pos = match dir {
-            'L' => last_pos - clicks,
-            'R' => last_pos + clicks,
-            _ => panic!("Unknown direction"),
-        };
-
-        let div = (clicks / 100).abs();
-        let curr_pos = linear_pos.rem_euclid(100);
-        let so = last_pos.signum();
-        let no = curr_pos.signum();
-        let d = if so != no { 1 } else { 0 };
-        println!(
-            "{linear_pos}/{curr_pos} => {so}/{no}, d={d}, div={div} => {}",
-            div + d
-        );
-
-        if last_pos == curr_pos || last_pos == 0 {
-            println!("last_pos={last_pos}, curr_pos={curr_pos}, clicks={clicks}, d={d}, div={div}");
-        }
-
-        last_pos = curr_pos.rem_euclid(100);
-        zeros + div.abs() + d
-    }) as usize
+    moves
+        .iter()
+        .map(|&(dir, clicks)| {
+            let (curr_pos, z) = zero_clicked(last_pos, rotate(dir, clicks));
+            last_pos = curr_pos;
+            z
+        })
+        .sum::<i64>() as usize
 }
 
 const INPUT: &str = include_str!("data/input");
@@ -75,6 +86,22 @@ mod tests {
     pub const TEST_ANSWER: usize = 3;
     pub const TEST_INPUT_2: &str = TEST_INPUT;
     pub const TEST_ANSWER_2: usize = 6;
+
+    #[test]
+    fn test_zero_clicked() {
+        assert_eq!((1, 0), zero_clicked(0, 1));
+        assert_eq!((99, 0), zero_clicked(0, -1));
+        assert_eq!((99, 0), zero_clicked(0, 99));
+        assert_eq!((1, 1), zero_clicked(0, 101));
+        assert_eq!((0, 1), zero_clicked(0, 100));
+        assert_eq!((0, 1), zero_clicked(0, -100));
+        assert_eq!((0, 1), zero_clicked(1, 99));
+        assert_eq!((0, 2), zero_clicked(1, 199));
+        assert_eq!((0, 1), zero_clicked(1, -1));
+        assert_eq!((0, 2), zero_clicked(1, -101));
+        assert_eq!((1, 1), zero_clicked(1, -100));
+        assert_eq!((1, 1), zero_clicked(1, 100));
+    }
 
     #[test]
     fn test_part1() {
