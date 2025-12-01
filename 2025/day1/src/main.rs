@@ -1,5 +1,3 @@
-use std::{io::Cursor, ops::Rem};
-
 fn parse_input(input: &str) -> Vec<(char, i64)> {
     input
         .lines()
@@ -21,29 +19,15 @@ fn rotate(dir: char, clicks: i64) -> i64 {
 }
 
 fn zero_clicked(start_pos: i64, rotation: i64) -> (i64, i64) {
-    let linear_pos = start_pos + rotation;
-    let revolutions = rotation / 100;
-    let end_pos = linear_pos.rem_euclid(100);
-    let d = end_pos - start_pos;
-    let past_zero = if start_pos == 0 || d == 0 {
-        0
-    } else if end_pos == 0 {
-        1
-    } else {
-        match (rotation > 0, d > 0) {
-            (true, true) => 0,
-            (true, false) => 1,
-            (false, true) => 1,
-            (false, false) => 0,
-        }
+    let end_pos = (start_pos + rotation).rem_euclid(100);
+    let d_pos = end_pos - start_pos;
+    let past_zero = match (start_pos, end_pos, d_pos) {
+        (0, _, _) | (_, _, 0) => 0,
+        (_, 0, _) => 1,
+        _ => (d_pos.signum() != rotation.signum()) as i64,
     };
 
-    println!(
-            "{start_pos}r{rotation}={linear_pos}={end_pos} => past_zero={past_zero}, rev={revolutions}, d={d} => {}",
-            revolutions + past_zero
-        );
-
-    (end_pos, revolutions.abs() + past_zero)
+    (end_pos, (rotation / 100).abs() + past_zero)
 }
 
 pub fn part1(input: &str) -> usize {
