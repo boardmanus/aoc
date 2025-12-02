@@ -2,9 +2,9 @@ fn parse_input(input: &str) -> Vec<(char, i64)> {
     input
         .lines()
         .map(|line| {
-            let mut parts = line.chars();
-            let dir = parts.next().expect("No dir found");
-            let clicks = parts.as_str().parse::<i64>().expect("No clicks found");
+            let (dir_str, num_str) = line.split_at(1);
+            let dir = dir_str.chars().next().expect("No dir found");
+            let clicks = num_str.parse::<i64>().expect("No clicks found");
             (dir, clicks)
         })
         .collect()
