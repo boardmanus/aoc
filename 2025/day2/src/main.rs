@@ -1,4 +1,4 @@
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 
 pub fn part1(input: &str) -> usize {
     let pairs = parse_input(input);
@@ -18,19 +18,35 @@ fn double_range(range: RangeInclusive<usize>) -> usize {
     range.map(|v| if is_double(v) { v } else { 0 }).sum()
 }
 
+#[allow(dead_code)]
+fn is_dup_s(v: usize) -> bool {
+    let s = v.to_string();
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    (1..=len / 2)
+        .filter(|&dup_len| len.is_multiple_of(dup_len))
+        .any(|dup_len| {
+            let seg = &bytes[..dup_len];
+            bytes.chunks(dup_len).all(|chunk| chunk == seg)
+        })
+}
+
+#[allow(dead_code)]
+fn is_double_s(v: usize) -> bool {
+    let s = v.to_string();
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    bytes[..len / 2] == bytes[len / 2..]
+}
+
 fn is_dup(v: usize) -> bool {
     let num_digits = (v as f64).log10() as usize + 1;
     (1..=num_digits / 2)
-        .filter(|dup_len| num_digits % dup_len == 0)
+        .filter(|&dup_len| num_digits.is_multiple_of(dup_len))
         .any(|dup_len| {
-            let d = (10usize).pow(dup_len as u32);
+            let d = 10_usize.pow(dup_len as u32);
             let seg = v % d;
-            let mut shift_v = v / d;
-            (1..num_digits / dup_len).all(|_i| {
-                let next_seg = shift_v % d;
-                shift_v = shift_v / d;
-                seg == next_seg
-            })
+            (0..num_digits / dup_len - 1).all(|i| (v / d.pow((i + 1) as u32)) % d == seg)
         })
 }
 
