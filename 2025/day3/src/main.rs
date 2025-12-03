@@ -3,38 +3,36 @@ fn parse_input(input: &str) -> Vec<Vec<usize>> {
         .lines()
         .map(|line| {
             line.chars()
-                .map(|c| c.to_string().parse().unwrap())
+                .map(|c| c.to_string().parse().expect("wasn't a digit"))
                 .collect()
         })
         .collect()
 }
 
-fn max_joltage(bank: &[usize], num_batteries: usize) -> usize {
+fn joltage_pos(bank: &[usize], num_batteries: usize) -> Option<(usize, usize)> {
+    let joltage = *bank[..bank.len() - num_batteries + 1].iter().max()?;
+    let (battery_pos, _) = bank.iter().enumerate().find(|&(_, &j)| j == joltage)?;
+    Some((joltage, battery_pos))
+}
+
+fn max_joltage(bank: &[usize], current_joltage: usize, num_batteries: usize) -> usize {
     if num_batteries == 0 {
-        return 0;
+        current_joltage
+    } else {
+        let (b_joltage, b_pos) = joltage_pos(bank, num_batteries).expect("invalid");
+        let joltage = current_joltage * 10 + b_joltage;
+        max_joltage(&bank[b_pos + 1..], joltage, num_batteries - 1)
     }
-    let max_j = bank[..bank.len() - num_batteries + 1].iter().max().unwrap();
-    let (b_pos, _) = bank.iter().enumerate().find(|(_, j)| *j == max_j).unwrap();
-    max_j * 10_usize.pow(num_batteries as u32 - 1)
-        + max_joltage(&bank[b_pos + 1..], num_batteries - 1)
 }
 
 pub fn part1(input: &str) -> usize {
     let banks = parse_input(input);
-    banks
-        .iter()
-        .map(|bank| {
-            let f = bank[..bank.len() - 1].iter().max().unwrap();
-            let (pos, _) = bank[..].iter().enumerate().find(|(i, b)| *b == f).unwrap();
-            let l = bank[pos + 1..].iter().max().unwrap();
-            10 * f + l
-        })
-        .sum()
+    banks.iter().map(|bank| max_joltage(bank, 0, 2)).sum()
 }
 
 pub fn part2(input: &str) -> usize {
     let banks = parse_input(input);
-    banks.iter().map(|bank| max_joltage(bank, 12)).sum()
+    banks.iter().map(|bank| max_joltage(bank, 0, 12)).sum()
 }
 
 const INPUT: &str = include_str!("data/input");
