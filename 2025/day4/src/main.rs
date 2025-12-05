@@ -12,15 +12,18 @@ fn is_removable(grid: &Grid<char, Dir8>, pos: &GridPos) -> bool {
             < 4
 }
 
-fn remove_rolls(grid: &mut Grid<char, Dir8>) -> usize {
-    let removable = grid
-        .iter_pos()
+fn removable_pos(grid: &Grid<char, Dir8>) -> Vec<GridPos> {
+    grid.iter_pos()
         .filter(|x| is_removable(grid, x))
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
+
+fn remove_rolls(grid: &mut Grid<char, Dir8>) -> usize {
+    let removable = removable_pos(grid);
     let num = removable.len();
-    for pos in removable {
+    removable.into_iter().for_each(|pos| {
         grid.set(&pos, '.');
-    }
+    });
     num
 }
 pub fn part1(input: &str) -> usize {
