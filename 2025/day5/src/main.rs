@@ -18,19 +18,18 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
                 .lines()
                 .map(|line| line.parse::<usize>().unwrap())
                 .collect();
-            (x, y)
+            (compress(&x), y)
         })
         .unwrap()
 }
 
-pub fn part1(input: &str) -> usize {
-    let (ranges, ingredients) = parse_input(input);
+fn compress(ranges: &[RangeInclusive<usize>]) -> Vec<RangeInclusive<usize>> {
     ranges
         .iter()
         .fold(Vec::<RangeInclusive<usize>>::new(), |mut acc, range| {
             if let Some(last) = acc.last_mut() {
-                if last.end() >= range.start() {
-                    *last = (*last.start())..=(*range.end());
+                if *last.end() >= *range.start() {
+                    *last = (*last.start())..=*last.end().max(range.end());
                 } else {
                     acc.push(range.clone());
                 }
@@ -38,8 +37,11 @@ pub fn part1(input: &str) -> usize {
                 acc.push(range.clone());
             }
             acc
-        });
+        })
+}
 
+pub fn part1(input: &str) -> usize {
+    let (ranges, ingredients) = parse_input(input);
     ingredients
         .iter()
         .filter_map(|i| ranges.iter().find(|r| r.contains(i)))
@@ -47,7 +49,8 @@ pub fn part1(input: &str) -> usize {
 }
 
 pub fn part2(input: &str) -> usize {
-    0
+    let (ranges, _ingredients) = parse_input(input);
+    ranges.iter().map(|r| r.end() - r.start() + 1).sum()
 }
 
 const INPUT: &str = include_str!("data/input");
