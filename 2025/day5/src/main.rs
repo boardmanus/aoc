@@ -4,7 +4,7 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
     input
         .split_once("\n\n")
         .map(|(range_str, ingredient_str)| {
-            let x = range_str
+            let mut x: Vec<_> = range_str
                 .lines()
                 .map(|line| {
                     line.split_once('-')
@@ -12,6 +12,7 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
                         .unwrap()
                 })
                 .collect();
+            x.sort_by(|x, y| x.start().cmp(y.start()));
 
             let y = ingredient_str
                 .lines()
@@ -23,8 +24,7 @@ fn parse_input(input: &str) -> (Vec<RangeInclusive<usize>>, Vec<usize>) {
 }
 
 pub fn part1(input: &str) -> usize {
-    let (mut ranges, ingredients) = parse_input(input);
-    ranges.sort_by(|x, y| x.start().cmp(y.start()));
+    let (ranges, ingredients) = parse_input(input);
     ranges
         .iter()
         .fold(Vec::<RangeInclusive<usize>>::new(), |mut acc, range| {
