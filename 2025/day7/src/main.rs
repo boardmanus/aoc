@@ -45,43 +45,20 @@ fn beam_split_r(
         return *num;
     }
 
-    let mut new_beam = beam + Dir4::S;
-    let mut beam_locs = vec![new_beam];
-    while let Some(t) = qteleporter.at(&new_beam) {
-        if let Some(num) = visited.get(&new_beam) {
-            return *num;
+    let t = qteleporter.at(&beam);
+    let time_lines = match t {
+        Some('.') | Some('S') => beam_split_r(qteleporter, beam + Dir4::S, visited),
+        Some('^') => {
+            beam_split_r(qteleporter, beam + Dir4::E, visited)
+                + beam_split_r(qteleporter, beam + Dir4::W, visited)
         }
-        match t {
-            '.' => {
-                new_beam = new_beam + Dir4::S;
-                beam_locs.push(new_beam);
-                continue;
-            }
-            '^' => {
-                let time_lines = beam_split_r(qteleporter, new_beam + Dir4::E, visited)
-                    + beam_split_r(qteleporter, new_beam + Dir4::W, visited);
-                update_visited(&beam_locs, time_lines, visited);
-                return time_lines;
-            }
-            _ => panic!("Unexpected char"),
-        }
-    }
-    // beam reached bottom
-    update_visited(&beam_locs, 1, visited);
-    1
+        None => 1,
+        _ => panic!("Unexpected char"),
+    };
+    visited.insert(beam, time_lines);
+    time_lines
 }
 
-fn update_visited(
-    beam_locs: &Vec<GridPos>,
-    time_lines: usize,
-    visited: &mut HashMap<GridPos, usize>,
-) {
-    beam_locs.into_iter().for_each(|&beam| {
-        let a = visited.insert(beam, time_lines);
-        assert!(a.is_none() || a.unwrap() == time_lines);
-        println!("Adding to visited: {beam}, {time_lines}");
-    });
-}
 pub fn part2(input: &str) -> usize {
     let qteleporter = Grid::<char, Dir4>::parse(input);
     let start = qteleporter.find('S').unwrap();
