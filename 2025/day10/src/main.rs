@@ -2,14 +2,13 @@ use std::collections::{HashMap, VecDeque};
 
 type Lights = usize;
 type Button = Vec<usize>;
-type Joltage = [u16; 10];
+type Joltage = Vec<usize>;
 
 #[derive(Debug)]
 struct Machine {
     lights: Lights,
     buttons: Vec<Button>,
     joltage: Joltage,
-    jnum: usize,
 }
 
 impl Machine {
@@ -45,27 +44,19 @@ impl Machine {
             .collect()
     }
 
-    fn parse_joltage(j_str: &str) -> (Joltage, usize) {
-        let nums = Machine::map_to_nums(j_str);
-        (
-            nums.iter().enumerate().fold([0; 10], |mut ja, (i, &j)| {
-                ja[i] = j as u16;
-                ja
-            }),
-            nums.len(),
-        )
+    fn parse_joltage(j_str: &str) -> Joltage {
+        Machine::map_to_nums(j_str)
     }
     fn parse(line: &str) -> Machine {
         let (goal_str, rest_str) = line.split_once(']').unwrap();
         let (buttons_str, joltage_str) = rest_str.split_once('{').unwrap();
         let lights = Machine::parse_goal(goal_str);
         let buttons = Machine::parse_buttons(buttons_str);
-        let (joltage, jnum) = Machine::parse_joltage(joltage_str);
+        let joltage = Machine::parse_joltage(joltage_str);
         Machine {
             lights,
             buttons,
             joltage,
-            jnum,
         }
     }
     fn light_mask(button: &Button) -> Lights {
@@ -96,66 +87,114 @@ impl Machine {
         0
     }
 
-    fn update_joltage(button: &Button, joltage: Joltage) -> Joltage {
-        button.iter().fold(joltage, |mut j, &b| {
+    fn update_joltage(button: &Button, joltage: &Joltage) -> Joltage {
+        button.iter().fold(joltage.clone(), |mut j, &b| {
             j[b] += 1;
             j
         })
     }
 
     fn d_joltage(&self, joltage: &Joltage) -> Joltage {
-        let min = joltage[0..self.jnum].iter().min().unwrap();
-        joltage[0..self.jnum]
+        let min = joltage.iter().min().unwrap();
+        joltage.iter().enumerate().fold(vec![], |mut dj, (i, &j)| {
+            dj.push(joltage[i] - min);
+            dj
+        })
+    }
+
+    fn gen_equations(&self) -> Vec<(usize, Vec<usize>)> {
+        self.joltage
             .iter()
             .enumerate()
-            .fold([0; 10], |mut dj, (i, &j)| {
-                dj[i] = joltage[i] - min;
-                dj
+            .map(|(i, &j)| {
+                let e = self
+                    .buttons
+                    .iter()
+                    .enumerate()
+                    .filter(|b| b.1.contains(&i))
+                    .map(|b| b.0)
+                    .collect::<Vec<_>>();
+                (j, e)
             })
+            .collect()
+    }
+
+    fn equations_valid(&self, equations: &[(usize, Vec<usize>)], presses: &[usize]) -> bool {
+        equations.iter().all(|e| {
+            let res = e.0 >= e.1.iter().map(|&b| presses[b]).sum();
+            if !res {
+                //println!("Equation failed: {:?} - {:?}", e, presses);
+            }
+            res
+        })
     }
 
     fn shortest_joltage_presses(&self) -> usize {
         println!("finding joltage for {:?}", self.joltage);
-        let mut visited = HashMap::<(Joltage, Joltage), usize>::new();
         let mut q = self
             .buttons
             .iter()
-            .map(|b| (b, [0; 10], 0))
+            .map(|b| (b, vec![0; self.joltage.len()], vec![0; self.buttons.len()]))
             .collect::<VecDeque<_>>();
-        let mut last_presses = 0;
-        let mut last_joltage = [0; 10];
+
+        let equations = self.gen_equations();
+
         while let Some((button, joltage, presses)) = q.pop_front() {
-            last_presses = presses;
-            last_joltage = joltage;
-            if (joltage == self.joltage) {
-                println!("Joltage presses={presses}");
-                return presses;
+            if joltage == self.joltage {
+                println!("Joltage presses={:?}", presses);
+                return presses.iter().sum();
             }
-            let new_joltage = Machine::update_joltage(button, joltage);
-            println!("Applying {:?}/{:?} => {:?}", button, joltage, new_joltage);
-            if new_joltage[0..self.jnum]
+            let new_joltage = Machine::update_joltage(button, &joltage);
+            //println!("Applying {:?}/{:?} => {:?}", button, joltage, new_joltage);
+            if new_joltage
                 .iter()
                 .enumerate()
                 .any(|(i, &j)| j > self.joltage[i])
             {
-                println!("Toobig: {presses}/{:?}/{:?}", new_joltage, self.joltage);
+                //println!("Toobig: {:?}/{:?}/{:?}", presses, new_joltage, self.joltage);
 
                 continue;
             }
 
-            self.buttons.iter().for_each(|b| {
-                println!("Adding {:?}/{:?}/{}", b, new_joltage, presses + 1);
-                q.push_back((b, new_joltage, presses + 1))
+            self.buttons.iter().enumerate().for_each(|b| {
+                let mut new_presses = presses.clone();
+                new_presses[b.0] += 1;
+                if self.equations_valid(&equations, &presses) {
+                    //println!("Adding {:?}/{:?}/{:?}", b, new_joltage, presses);
+                    q.push_back((b.1, new_joltage.clone(), new_presses))
+                } else {
+                    println!("Equations not satisfied! {:?} => {:?}", equations, presses);
+                }
             });
             if q.len() > 10000000 {
                 panic!("not good enough!");
             }
         }
-        panic!(
-            "should always find an answer! presses={last_presses}, joltage={:?}",
-            last_joltage
-        );
+        panic!("should always find an answer!");
         0
+    }
+
+    fn solve_joltage(&self) -> usize {
+        use good_lp::*;
+        let mut vars = variables!();
+        let press_vars = (0..self.buttons.len())
+            .map(|_| vars.add(variable().min(0).integer()))
+            .collect::<Vec<_>>();
+
+        let mut problem = vars
+            .minimise(press_vars.iter().sum::<Expression>())
+            .using(default_solver);
+        let mut exprs = vec![0.into_expression(); self.joltage.len()];
+        for i in 0..self.buttons.len() {
+            for &x in &self.buttons[i] {
+                exprs[x] += press_vars[i];
+            }
+        }
+        for (e, &j) in exprs.into_iter().zip(self.joltage.iter()) {
+            problem = problem.with(e.eq(j as f64));
+        }
+        let sol = problem.solve().unwrap();
+        press_vars.iter().map(|&v| sol.value(v)).sum::<f64>() as _
     }
 }
 
@@ -169,7 +208,7 @@ pub fn part1(input: &str) -> usize {
 
 pub fn part2(input: &str) -> usize {
     let machines = parse_input(input);
-    machines.iter().map(|m| m.shortest_joltage_presses()).sum()
+    machines.iter().map(|m| m.solve_joltage()).sum()
 }
 
 const INPUT: &str = include_str!("data/input");
@@ -194,9 +233,16 @@ mod tests {
             let mut buttons = m.buttons.clone();
             let j = buttons
                 .iter()
-                .fold([0; 10], |j, b| Machine::update_joltage(b, j));
+                .fold(vec![], |j, b| Machine::update_joltage(b, &j));
             println!("{:?} => {:?}", j, m.joltage);
         });
+    }
+
+    #[test]
+    fn test_buttons() {
+        let machines = parse_input(INPUT);
+        let n = machines.iter().map(|m| m.buttons.len()).max().unwrap();
+        println!("max buttons {n}");
     }
 
     #[test]
