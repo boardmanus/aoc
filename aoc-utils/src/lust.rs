@@ -42,7 +42,7 @@ impl<Data: Clone> Lust<Data> {
     where
         Data: PartialEq,
     {
-        self.iter().any(|d| &d == data)
+        self.iter().any(|d| d == *data)
     }
 
     pub fn iter(&self) -> LustIt<Data> {
