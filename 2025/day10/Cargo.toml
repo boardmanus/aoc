@@ -7,4 +7,7 @@ edition = "2021"
 
 [dependencies]
 aoc-utils = { path = "../../aoc-utils" }
+#good_lp = { version = "1.14.2", features = ["clarabel"], default-features = false }
+#good_lp = { version = "1.14.2", features = ["lpsolve"], default-features = false }
 good_lp = { version = "1.14.2", features = ["microlp"], default-features = false }
+
