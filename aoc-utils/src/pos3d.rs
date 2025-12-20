@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     fmt::Display,
     ops::{Add, Sub},
 };
@@ -9,7 +8,7 @@ use num_traits::{Float, FromPrimitive, Num, Signed};
 
 use crate::vec3d::Vec3d;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Pos3d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
@@ -19,30 +18,6 @@ pub struct Pos3d<Scalar: Num> {
 impl<Scalar: Num + Display> Display for Pos3d<Scalar> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{},{})", self.x, self.y, self.z)
-    }
-}
-
-impl<Scalar: Num + PartialOrd> PartialOrd for Pos3d<Scalar> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.z.partial_cmp(&other.z) {
-            Some(Ordering::Equal) => match self.y.partial_cmp(&other.y) {
-                Some(Ordering::Equal) => self.x.partial_cmp(&other.x),
-                ord => ord,
-            },
-            ord => return ord,
-        }
-    }
-}
-
-impl<Scalar: Num + Ord + Eq> Ord for Pos3d<Scalar> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.z.cmp(&other.y) {
-            Ordering::Equal => match self.y.cmp(&other.y) {
-                Ordering::Equal => self.x.cmp(&other.x),
-                ord => ord,
-            },
-            ord => ord,
-        }
     }
 }
 

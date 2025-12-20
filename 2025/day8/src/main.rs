@@ -1,87 +1,41 @@
-use std::{collections::HashSet, fmt::Display, ops::Sub};
+use std::collections::HashSet;
 
-use aoc_utils::grif::{
-    simple::{NodeIdFromStr, SimpleGraph, SimpleGraphBuilder},
-    Builder, Graph,
+use aoc_utils::pos3d;
+use aoc_utils::{
+    grif::{
+        simple::{SimpleGraph, SimpleGraphBuilder},
+        Builder, Graph,
+    },
+    vecnd::VecSize,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-struct Pos3d {
-    x: i64,
-    y: i64,
-    z: i64,
-}
+type Pos3d = pos3d::Pos3d<i64>;
 
-impl Display for Pos3d {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{},{},{}]", self.x, self.y, self.z)
-    }
-}
-
-impl<'a> NodeIdFromStr<'a> for Pos3d {
-    fn node_id_from_str(_s: &'a str) -> Option<Self> {
-        None
-    }
-}
-
-impl Pos3d {
-    fn parse(line: &str) -> Option<Pos3d> {
-        let mut i = line.split(',').filter_map(|s| s.parse::<i64>().ok());
-        Some(Pos3d {
-            x: i.next()?,
-            y: i.next()?,
-            z: i.next()?,
-        })
-    }
-}
-
-impl Sub for Pos3d {
-    type Output = Vec3d;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Vec3d {
-            x: rhs.x - self.x,
-            y: rhs.y - self.y,
-            z: rhs.z - self.z,
-        }
-    }
-}
-
-struct Vec3d {
-    x: i64,
-    y: i64,
-    z: i64,
-}
-
-impl Vec3d {
-    fn new(x: i64, y: i64, z: i64) -> Vec3d {
-        Vec3d { x, y, z }
-    }
-
-    fn mag2(&self) -> i64 {
-        self.x * self.x + self.y * self.y + self.z * self.z
-    }
+fn parse_pos3d(line: &str) -> Option<Pos3d> {
+    let mut i = line.split(',').filter_map(|s| s.parse::<i64>().ok());
+    Some(Pos3d {
+        x: i.next()?,
+        y: i.next()?,
+        z: i.next()?,
+    })
 }
 
 fn parse_input(input: &str) -> Vec<Pos3d> {
-    input
-        .lines()
-        .filter_map(|line| Pos3d::parse(line))
-        .collect()
+    input.lines().filter_map(parse_pos3d).collect()
 }
 
-fn shortest_wires(boxes: &Vec<Pos3d>, n: usize) -> Vec<(&Pos3d, &Pos3d)> {
+fn shortest_wires(boxes: &[Pos3d], n: usize) -> Vec<(&Pos3d, &Pos3d)> {
     let mut dists: Vec<(&Pos3d, &Pos3d)> = (0..boxes.len()).fold(vec![], |dists, i| {
         (i + 1..boxes.len()).fold(dists, |mut dists, j| {
             dists.push((&boxes[i], &boxes[j]));
             dists
         })
     });
-    dists.sort_by_key(|(&a, &b)| (b - a).mag2());
+    dists.sort_by_key(|(&a, &b)| (b - a).mag_sqr());
     dists.into_iter().take(n).collect::<Vec<_>>()
 }
 
-fn connect_wires(boxes: &Vec<Pos3d>, n: usize) -> SimpleGraph<Pos3d> {
+fn connect_wires(boxes: &[Pos3d], n: usize) -> SimpleGraph<Pos3d> {
     let shortest_nodes = shortest_wires(boxes, n);
     let mut g = SimpleGraphBuilder::new("circuts");
     shortest_nodes
@@ -91,15 +45,15 @@ fn connect_wires(boxes: &Vec<Pos3d>, n: usize) -> SimpleGraph<Pos3d> {
     g.build()
 }
 
-fn circuit_prod(boxes: &Vec<Pos3d>, n: usize, np: usize) -> usize {
-    let g = connect_wires(&boxes, n);
+fn circuit_prod(boxes: &[Pos3d], n: usize, np: usize) -> usize {
+    let g = connect_wires(boxes, n);
     let mut visited: HashSet<Pos3d> = HashSet::new();
     let mut circuit_size: Vec<usize> = vec![];
     for j in boxes {
-        if visited.contains(&j) {
+        if visited.contains(j) {
             continue;
         }
-        if let Some(_) = g.node(&j) {
+        if g.node(j).is_some() {
             let s = g.dfs(*j, |_x| true).fold(0, |s, x| {
                 visited.insert(x);
                 s + 1
@@ -108,12 +62,10 @@ fn circuit_prod(boxes: &Vec<Pos3d>, n: usize, np: usize) -> usize {
         }
     }
     circuit_size.sort();
-    let prod = circuit_size.iter().rev().take(np).product();
-    println!("prod={prod}, circuit_sizes={:?}", circuit_size);
-    prod
+    circuit_size.iter().rev().take(np).product()
 }
 
-fn last_boxes(boxes: &Vec<Pos3d>) -> (Pos3d, Pos3d) {
+fn last_boxes(boxes: &[Pos3d]) -> (Pos3d, Pos3d) {
     let mut used: HashSet<Pos3d> = HashSet::new();
     let mut dists: Vec<(&Pos3d, &Pos3d)> = (0..boxes.len()).fold(vec![], |dists, i| {
         (i + 1..boxes.len()).fold(dists, |mut dists, j| {
@@ -121,7 +73,7 @@ fn last_boxes(boxes: &Vec<Pos3d>) -> (Pos3d, Pos3d) {
             dists
         })
     });
-    dists.sort_by_key(|(&a, &b)| (b - a).mag2());
+    dists.sort_by_key(|(&a, &b)| (b - a).mag_sqr());
     let last = dists
         .iter()
         .find(|(&a, &b)| {

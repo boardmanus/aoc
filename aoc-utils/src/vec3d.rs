@@ -7,7 +7,7 @@ use crate::vecnd::VecSize;
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num, Signed};
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Copy, Clone)]
 pub struct Vec3d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
