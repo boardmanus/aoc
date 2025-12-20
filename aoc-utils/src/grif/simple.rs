@@ -106,10 +106,7 @@ impl<'a> NodeIdFromStr<'a> for &'a str {
     }
 }
 
-impl<'a, NodeId> SimpleGraphBuilder<NodeId>
-where
-    NodeId: Copy + Eq + Ord + Display + Hash + NodeIdFromStr<'a>,
-{
+impl<'a, NodeId: Copy + Ord> SimpleGraphBuilder<NodeId> {
     pub fn new(name: &str) -> SimpleGraphBuilder<NodeId> {
         SimpleGraphBuilder {
             graph: SimpleGraph {
@@ -118,7 +115,12 @@ where
             },
         }
     }
+}
 
+impl<'a, NodeId> SimpleGraphBuilder<NodeId>
+where
+    NodeId: Copy + Ord + Display + Hash + NodeIdFromStr<'a>,
+{
     fn parse_nodes(
         input: &'a str,
         separator: &'a str,

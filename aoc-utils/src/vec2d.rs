@@ -1,19 +1,24 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::{
+    fmt::Display,
+    ops::{Add, Mul, Neg, Sub},
+};
 
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num, Signed};
 
 use crate::dir::{Dir, Dir4, Dir8};
-
-pub trait VecSize<Scalar: Num> {
-    fn mag_sqr(&self) -> Scalar;
-    fn manhattan(&self) -> Scalar;
-}
+use crate::vecnd::VecSize;
 
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub struct Vec2d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
+}
+
+impl<Scalar: Num + Display> Display for Vec2d<Scalar> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
+    }
 }
 
 impl<Scalar: Num> Vec2d<Scalar> {
