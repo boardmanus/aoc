@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     fmt::Display,
     ops::{Add, Sub},
 };
@@ -6,9 +7,9 @@ use std::{
 use approx::AbsDiffEq;
 use num_traits::{Float, FromPrimitive, Num, Signed};
 
-use crate::vec3d::Vec3d;
+use crate::{vec3d::Vec3d, vecnd::VecSize};
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Pos3d<Scalar: Num> {
     pub x: Scalar,
     pub y: Scalar,
@@ -21,6 +22,30 @@ impl<Scalar: Num + Display> Display for Pos3d<Scalar> {
     }
 }
 
+impl<Scalar: Num + PartialOrd> PartialOrd for Pos3d<Scalar> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.z.partial_cmp(&other.z) {
+            Some(Ordering::Equal) => match self.y.partial_cmp(&other.y) {
+                Some(Ordering::Equal) => self.x.partial_cmp(&other.x),
+                ord => ord,
+            },
+            ord => return ord,
+        }
+    }
+}
+
+impl<Scalar: Num + Ord + Eq> Ord for Pos3d<Scalar> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.z.cmp(&other.z) {
+            Ordering::Equal => match self.y.cmp(&other.y) {
+                Ordering::Equal => self.x.cmp(&other.x),
+                ord => ord,
+            },
+            ord => ord,
+        }
+    }
+}
+
 impl<Scalar: Num> Pos3d<Scalar> {
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Pos3d<Scalar> {
         Pos3d { x, y, z }
@@ -29,7 +54,7 @@ impl<Scalar: Num> Pos3d<Scalar> {
 
 impl<Scalar: Num + Signed + Copy> Pos3d<Scalar> {
     pub fn taxi_distance(&self, other: &Self) -> Scalar {
-        (self.x - other.x).abs() + (self.y - other.y).abs() + (self.z - other.z).abs()
+        (other - self).manhattan()
     }
 }
 
@@ -49,7 +74,15 @@ impl<Scalar: Num> Sub<Vec3d<Scalar>> for Pos3d<Scalar> {
     }
 }
 
-impl<Scalar: Num + Copy + From<i64>> Sub<Pos3d<Scalar>> for Pos3d<Scalar> {
+impl<Scalar: Num + Copy> Sub<Pos3d<Scalar>> for Pos3d<Scalar> {
+    type Output = Vec3d<Scalar>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec3d::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+    }
+}
+
+impl<'a, Scalar: Num + Copy> Sub<&'a Pos3d<Scalar>> for &'a Pos3d<Scalar> {
     type Output = Vec3d<Scalar>;
 
     fn sub(self, rhs: Self) -> Self::Output {
